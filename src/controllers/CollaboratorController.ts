@@ -201,7 +201,7 @@ export class CollaboratorController {
       }
 
       const LOCAL_FRONTEND = 'http://localhost:5173'
-      const DEPLOYED_FRONTEND = 'https://internal-frontend-two.vercel.app'
+      const DEPLOYED_FRONTEND = 'https://frontned-mblv.vercel.app'
       const FRONTEND_URL = process.env.VERCEL === '1' ? DEPLOYED_FRONTEND : LOCAL_FRONTEND
       const refreshUrl = `${FRONTEND_URL}/collaborator/stripe/refresh`
       const returnUrl = `${FRONTEND_URL}/collaborator/stripe/return`

@@ -38,7 +38,7 @@ export const sendClientDashboardEmail = async (
 ) => {
   const transporter = createTransporter()
   const LOCAL_FRONTEND = 'http://localhost:5173'
-  const DEPLOYED_FRONTEND = 'https://internal-frontend-two.vercel.app'
+  const DEPLOYED_FRONTEND = 'https://frontned-mblv.vercel.app'
   const FRONTEND_URL = process.env.VERCEL === '1' ? DEPLOYED_FRONTEND : LOCAL_FRONTEND
   const dashboardUrl = `${FRONTEND_URL}/client/${projectId}/dashboard`
 
@@ -148,7 +148,7 @@ export const sendAdminInvoiceUploadedEmail = async (
   if (!adminEmails.length) return { success: false, error: 'No admin emails' }
 
   const LOCAL_FRONTEND = 'http://localhost:5173'
-  const DEPLOYED_FRONTEND = 'https://internal-frontend-two.vercel.app'
+  const DEPLOYED_FRONTEND = 'https://frontned-mblv.vercel.app'
   const FRONTEND_URL = process.env.VERCEL === '1' ? DEPLOYED_FRONTEND : LOCAL_FRONTEND
   const adminProjectsUrl = `${FRONTEND_URL}/admin/projects`
   const projectDetailUrl = options.projectId ? `${FRONTEND_URL}/admin/projects/${options.projectId}` : adminProjectsUrl

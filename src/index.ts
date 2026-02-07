@@ -24,7 +24,7 @@ const PORT = 3001
 // Middleware
 // CORS configuration - support both local and deployed frontend
 const LOCAL_FRONTEND = 'http://localhost:5173'
-const DEPLOYED_FRONTEND = 'https://internal-frontend-two.vercel.app'
+const DEPLOYED_FRONTEND = 'https://frontned-mblv.vercel.app'
 // Use deployed URL on Vercel, localhost when running locally
 const FRONTEND_URL = process.env.VERCEL === '1' ? DEPLOYED_FRONTEND : LOCAL_FRONTEND
 const allowedOrigins = [LOCAL_FRONTEND, 'http://127.0.0.1:5173', DEPLOYED_FRONTEND]
