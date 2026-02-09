@@ -4,6 +4,10 @@ import nodemailer from 'nodemailer'
 const GMAIL_USER = 'aryanarshadlex5413@gmail.com'
 const GMAIL_APP_PASSWORD = 'gpua cmsh kixf sadu'.replace(/\s/g, '') // strip spaces for SMTP
 
+const LOCAL_FRONTEND = 'http://localhost:5173'
+const DEPLOYED_FRONTEND = 'https://frontned-mblv.vercel.app'
+const FRONTEND_URL = process.env.VERCEL === '1' ? DEPLOYED_FRONTEND : LOCAL_FRONTEND
+
 const createTransporter = () => {
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
     console.warn('⚠️  Gmail credentials not configured. Emails will be logged to console only.')
@@ -37,9 +41,6 @@ export const sendClientDashboardEmail = async (
   projectName: string
 ) => {
   const transporter = createTransporter()
-  const LOCAL_FRONTEND = 'http://localhost:5173'
-  const DEPLOYED_FRONTEND = 'https://frontned-mblv.vercel.app'
-  const FRONTEND_URL = process.env.VERCEL === '1' ? DEPLOYED_FRONTEND : LOCAL_FRONTEND
   const dashboardUrl = `${FRONTEND_URL}/client/${projectId}/dashboard`
 
   // Log the dashboard link to console for easy access during development
@@ -133,6 +134,208 @@ export const sendClientDashboardEmail = async (
   }
 }
 
+/** Send welcome/login email to a new collaborator with their credentials. */
+export const sendCollaboratorWelcomeEmail = async (
+  collaboratorEmail: string,
+  collaboratorName: string,
+  password: string
+) => {
+  const transporter = createTransporter()
+  const loginUrl = `${FRONTEND_URL}/login?redirect=/collaborator/projects`
+
+  console.log('\n' + '='.repeat(80))
+  console.log('📧 COLLABORATOR WELCOME EMAIL (Email would be sent to:', collaboratorEmail, ')')
+  console.log('='.repeat(80))
+  console.log('👤 Collaborator:', collaboratorName)
+  console.log('🔐 Email:', collaboratorEmail)
+  console.log('🔑 Temp Password:', password)
+  console.log('🔗 Login URL:', loginUrl)
+  console.log('='.repeat(80) + '\n')
+
+  const safeName = collaboratorName || 'there'
+
+  const mailOptions = {
+    from: `"Client Project Portal" <${GMAIL_USER}>`,
+    to: collaboratorEmail,
+    subject: 'You have been added as a collaborator',
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background: #f3f4f6; }
+            .container { max-width: 560px; margin: 0 auto; padding: 24px; }
+            .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+            .header { background: #1d4ed8; padding: 24px 20px; text-align: center; }
+            .header h1 { margin: 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
+            .content { padding: 28px 24px; }
+            .content p { margin: 0 0 1rem; font-size: 15px; }
+            .credentials { background: #f9fafb; border-radius: 8px; padding: 12px 14px; border: 1px solid #e5e7eb; font-size: 13px; }
+            .credentials code { background: #111827; color: #f9fafb; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+            .btn-wrap { text-align: center; margin: 24px 0 8px; }
+            .footer { text-align: center; padding: 20px; color: #9ca3af; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="card">
+              <div class="header">
+                <h1>Collaborator Access</h1>
+              </div>
+              <div class="content">
+                <p>Hi ${safeName},</p>
+                <p>You've been added as a <strong>collaborator</strong> to the project portal. You can now log in to see the projects assigned to you and update their progress.</p>
+                <p>Use the credentials below to sign in:</p>
+                <div class="credentials">
+                  <p><strong>Login Email:</strong> <code>${collaboratorEmail}</code></p>
+                  <p><strong>Temporary Password:</strong> <code>${password}</code></p>
+                </div>
+                <div class="btn-wrap">
+                  <a href="${loginUrl}" style="display: inline-block; padding: 12px 24px; background-color: #1d4ed8; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">Sign in as Collaborator</a>
+                </div>
+                <p style="font-size: 13px; color: #6b7280;">
+                  For security, we recommend that you log in and change your password as soon as possible.
+                </p>
+              </div>
+            </div>
+            <div class="footer">
+              <p>This is an automated message. Please do not reply.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+    text: `
+      Hi ${safeName},
+
+      You've been added as a collaborator to the project portal.
+
+      Login Email: ${collaboratorEmail}
+      Temporary Password: ${password}
+
+      Sign in here:
+      ${loginUrl}
+
+      For security, please log in and change your password as soon as possible.
+
+      This is an automated message. Please do not reply.
+    `,
+  }
+
+  try {
+    const result = await transporter.sendMail(mailOptions)
+    console.log('✅ Collaborator welcome email sent!', {
+      to: collaboratorEmail,
+      messageId: result.messageId,
+    })
+    return { success: true, messageId: result.messageId }
+  } catch (error: any) {
+    console.error('❌ Collaborator welcome email failed:', error.message)
+    return { success: false, error: error.message }
+  }
+}
+
+/** Notify a collaborator that a new project has been assigned to them. */
+export const sendCollaboratorProjectAssignedEmail = async (
+  collaboratorEmail: string,
+  collaboratorName: string,
+  projectId: string,
+  projectName: string
+) => {
+  const transporter = createTransporter()
+  const projectUrl = `${FRONTEND_URL}/collaborator/projects/${projectId}`
+  const dashboardUrl = `${FRONTEND_URL}/collaborator/projects`
+  const safeName = collaboratorName || 'there'
+
+  console.log('\n' + '='.repeat(80))
+  console.log('📧 COLLABORATOR PROJECT ASSIGNED EMAIL (Email would be sent to:', collaboratorEmail, ')')
+  console.log('='.repeat(80))
+  console.log('👤 Collaborator:', safeName)
+  console.log('📋 Project:', projectName)
+  console.log('🔗 Project URL:', projectUrl)
+  console.log('🔗 Collaborator Dashboard:', dashboardUrl)
+  console.log('='.repeat(80) + '\n')
+
+  const mailOptions = {
+    from: `"Client Project Portal" <${GMAIL_USER}>`,
+    to: collaboratorEmail,
+    subject: `New project assigned: ${projectName}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background: #f3f4f6; }
+            .container { max-width: 560px; margin: 0 auto; padding: 24px; }
+            .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+            .header { background: #16a34a; padding: 24px 20px; text-align: center; }
+            .header h1 { margin: 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
+            .content { padding: 28px 24px; }
+            .content p { margin: 0 0 1rem; font-size: 15px; }
+            .btn-wrap { text-align: center; margin: 24px 0 8px; }
+            .secondary-link { font-size: 13px; color: #6b7280; text-align: center; }
+            .footer { text-align: center; padding: 20px; color: #9ca3af; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="card">
+              <div class="header">
+                <h1>New Project Assigned</h1>
+              </div>
+              <div class="content">
+                <p>Hi ${safeName},</p>
+                <p>You have been assigned to a new project:</p>
+                <p><strong>${projectName}</strong></p>
+                <div class="btn-wrap">
+                  <a href="${projectUrl}" style="display: inline-block; padding: 12px 24px; background-color: #16a34a; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">Open Project</a>
+                </div>
+                <p class="secondary-link">
+                  Or view all your projects here:<br />
+                  <a href="${dashboardUrl}" style="color: #1d4ed8; text-decoration: none;">${dashboardUrl}</a>
+                </p>
+              </div>
+            </div>
+            <div class="footer">
+              <p>This is an automated message. Please do not reply.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+    text: `
+      Hi ${safeName},
+
+      You have been assigned to a new project:
+      "${projectName}"
+
+      Open the project:
+      ${projectUrl}
+
+      Or view all your projects:
+      ${dashboardUrl}
+
+      This is an automated message. Please do not reply.
+    `,
+  }
+
+  try {
+    const result = await transporter.sendMail(mailOptions)
+    console.log('✅ Collaborator project assignment email sent!', {
+      to: collaboratorEmail,
+      messageId: result.messageId,
+    })
+    return { success: true, messageId: result.messageId }
+  } catch (error: any) {
+    console.error('❌ Collaborator project assignment email failed:', error.message)
+    return { success: false, error: error.message }
+  }
+}
+
 /** Notify admin(s) that a collaborator uploaded an invoice (per-project or monthly). */
 export const sendAdminInvoiceUploadedEmail = async (
   adminEmails: string[],
@@ -217,4 +420,3 @@ export const sendAdminInvoiceUploadedEmail = async (
     return { success: false, error: error.message }
   }
 }
-

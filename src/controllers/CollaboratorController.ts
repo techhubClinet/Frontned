@@ -6,6 +6,7 @@ import { Project } from '../models/Project'
 import { ApiResponse } from '../views/response'
 import { AuthRequest } from '../middleware/auth'
 import { getStripe } from '../config/stripe'
+import { sendCollaboratorWelcomeEmail } from '../services/emailService'
 
 export class CollaboratorController {
   // Get all collaborators
@@ -62,6 +63,16 @@ export class CollaboratorController {
         last_name,
         email: email.toLowerCase(),
         user_id: user._id,
+      })
+
+      // Fire-and-forget welcome email with login credentials
+      const fullName = `${first_name || ''} ${last_name || ''}`.trim() || first_name || last_name || ''
+      sendCollaboratorWelcomeEmail(
+        email.toLowerCase(),
+        fullName,
+        password
+      ).catch((emailError: any) => {
+        console.error('Failed to send collaborator welcome email:', emailError?.message || emailError)
       })
 
       return ApiResponse.success(res, collaborator, 'Collaborator created successfully', 201)

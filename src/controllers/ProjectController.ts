@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { Project } from '../models/Project'
 import { ApiResponse } from '../views/response'
 import { AuthRequest } from '../middleware/auth'
+import { sendCollaboratorProjectAssignedEmail } from '../services/emailService'
 
 export class ProjectController {
   // Get project by ID (for client link validation)
@@ -460,6 +461,17 @@ export class ProjectController {
       if (!project) {
         return ApiResponse.notFound(res, 'Project not found')
       }
+
+      // Fire-and-forget email to collaborator about new assignment
+      const collabName = `${collaborator.first_name || ''} ${collaborator.last_name || ''}`.trim()
+      sendCollaboratorProjectAssignedEmail(
+        collaborator.email,
+        collabName,
+        project._id.toString(),
+        project.name || 'New Project'
+      ).catch((emailError: any) => {
+        console.error('Failed to send collaborator project assignment email:', emailError?.message || emailError)
+      })
 
       return ApiResponse.success(res, project, 'Collaborator assigned successfully')
     } catch (error: any) {
