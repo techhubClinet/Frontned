@@ -44,10 +44,10 @@ export class CollaboratorController {
         return ApiResponse.error(res, 'First name, last name, email and password are required', 400)
       }
 
-      // Ensure email is not already used by another user
-      const existingUser = await User.findOne({ email: email.toLowerCase() })
-      if (existingUser) {
-        return ApiResponse.error(res, 'A user with this email already exists', 400)
+      // Ensure email is not already used by another collaborator
+      const existingCollaborator = await Collaborator.findOne({ email: email.toLowerCase() })
+      if (existingCollaborator) {
+        return ApiResponse.error(res, 'A collaborator with this email already exists', 400)
       }
 
       // Create a User record for collaborator login
