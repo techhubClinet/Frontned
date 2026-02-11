@@ -22,25 +22,11 @@ const app = express()
 const PORT = 3001
 
 // Middleware
-// CORS configuration - support both local and deployed frontend (no env)
-const LOCAL_FRONTEND = 'http://localhost:5173'
-const DEPLOYED_FRONTEND = 'https://frontned-mblv.vercel.app'
-const allowedOrigins = [LOCAL_FRONTEND, 'http://127.0.0.1:5173', DEPLOYED_FRONTEND]
-
+// CORS configuration - allow access from anywhere (Access-Control-Allow-Origin: *)
+// NOTE: Since we use bearer tokens and not cookies, we don't need credentials here.
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true)
-    
-    // Allow specific origins
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true)
-    } else {
-      // In development, allow all origins for easier testing
-      callback(null, true)
-    }
-  },
-  credentials: true,
+  origin: '*',
+  credentials: false,
 }))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
