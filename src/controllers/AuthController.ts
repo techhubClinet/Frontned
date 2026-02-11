@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { User } from '../models/User'
+import { Collaborator } from '../models/Collaborator'
 import { ApiResponse } from '../views/response'
 import jwt from 'jsonwebtoken'
 
@@ -54,6 +55,7 @@ export class AuthController {
             name: user.name,
             email: user.email,
             role: user.role,
+            isCollaborator: false,
           },
           token,
         },
@@ -99,6 +101,9 @@ export class AuthController {
         return ApiResponse.error(res, 'Invalid email or password', 401)
       }
 
+      // User can be both client and collaborator (same email); frontend uses this to show collaborator access
+      const collaboratorProfile = await Collaborator.findOne({ user_id: user._id })
+
       // Generate token
       const token = generateToken(user._id.toString(), user.email, user.role)
 
@@ -108,6 +113,7 @@ export class AuthController {
           name: user.name,
           email: user.email,
           role: user.role,
+          isCollaborator: !!collaboratorProfile,
         },
         token,
       })
@@ -130,11 +136,14 @@ export class AuthController {
         return ApiResponse.error(res, 'User not found', 404)
       }
 
+      const collaboratorProfile = await Collaborator.findOne({ user_id: user._id })
+
       return ApiResponse.success(res, {
         id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
+        isCollaborator: !!collaboratorProfile,
       })
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500)

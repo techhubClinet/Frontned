@@ -134,7 +134,7 @@ export const sendClientDashboardEmail = async (
   }
 }
 
-/** Send welcome/login email to a new collaborator with their credentials. */
+/** Send welcome email to a new collaborator with login email and password. */
 export const sendCollaboratorWelcomeEmail = async (
   collaboratorEmail: string,
   collaboratorName: string,
@@ -148,7 +148,6 @@ export const sendCollaboratorWelcomeEmail = async (
   console.log('='.repeat(80))
   console.log('👤 Collaborator:', collaboratorName)
   console.log('🔐 Email:', collaboratorEmail)
-  console.log('🔑 Temp Password:', password)
   console.log('🔗 Login URL:', loginUrl)
   console.log('='.repeat(80) + '\n')
 
@@ -190,14 +189,12 @@ export const sendCollaboratorWelcomeEmail = async (
                 <p>Use the credentials below to sign in:</p>
                 <div class="credentials">
                   <p><strong>Login Email:</strong> <code>${collaboratorEmail}</code></p>
-                  <p><strong>Temporary Password:</strong> <code>${password}</code></p>
+                  <p><strong>Password:</strong> <code>${password}</code></p>
                 </div>
                 <div class="btn-wrap">
                   <a href="${loginUrl}" style="display: inline-block; padding: 12px 24px; background-color: #1d4ed8; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">Sign in as Collaborator</a>
                 </div>
-                <p style="font-size: 13px; color: #6b7280;">
-                  For security, we recommend that you log in and change your password as soon as possible.
-                </p>
+                <p style="font-size: 13px; color: #6b7280;">For security, we recommend that you log in and change your password as soon as possible.</p>
               </div>
             </div>
             <div class="footer">
@@ -213,7 +210,7 @@ export const sendCollaboratorWelcomeEmail = async (
       You've been added as a collaborator to the project portal.
 
       Login Email: ${collaboratorEmail}
-      Temporary Password: ${password}
+      Password: ${password}
 
       Sign in here:
       ${loginUrl}

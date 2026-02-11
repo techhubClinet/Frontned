@@ -5,6 +5,8 @@ export interface ICollaborator extends Document {
   last_name: string
   email: string
   user_id: mongoose.Types.ObjectId
+  /** Temporary password set by admin; only for admin display, not sent by email */
+  temporary_password?: string
   // Stripe Connect fields
   stripe_account_id?: string
   payouts_enabled?: boolean
@@ -21,6 +23,7 @@ const CollaboratorSchema = new Schema<ICollaborator>(
     last_name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true },
     user_id: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    temporary_password: { type: String },
     stripe_account_id: { type: String },
     payouts_enabled: { type: Boolean, default: false },
     charges_enabled: { type: Boolean, default: false },

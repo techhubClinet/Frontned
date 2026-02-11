@@ -12,6 +12,7 @@ export interface IProject extends Document {
   selected_service?: mongoose.Types.ObjectId
   service_name?: string // Service name for simple projects (predefined services)
   service_price?: number // Price for simple projects (predefined services)
+  service_description?: string // Catalog description for predefined services
   custom_quote_amount?: number
   custom_quote_request?: mongoose.Types.ObjectId // Link to CustomQuote
   custom_quote_description?: string // Admin's description explaining the quote/pricing
@@ -69,6 +70,7 @@ const ProjectSchema = new Schema<IProject>(
     selected_service: { type: Schema.Types.ObjectId, ref: 'Service' },
     service_name: { type: String },
     service_price: { type: Number },
+    service_description: { type: String },
     custom_quote_amount: { type: Number },
     custom_quote_request: { type: Schema.Types.ObjectId, ref: 'CustomQuote' },
     custom_quote_description: { type: String },

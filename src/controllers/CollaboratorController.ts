@@ -44,31 +44,41 @@ export class CollaboratorController {
         return ApiResponse.error(res, 'First name, last name, email and password are required', 400)
       }
 
+      const normalizedEmail = email.toLowerCase()
+
       // Ensure email is not already used by another collaborator
-      const existingCollaborator = await Collaborator.findOne({ email: email.toLowerCase() })
+      const existingCollaborator = await Collaborator.findOne({ email: normalizedEmail })
       if (existingCollaborator) {
         return ApiResponse.error(res, 'A collaborator with this email already exists', 400)
       }
 
-      // Create a User record for collaborator login
-      const user = await User.create({
-        name: `${first_name} ${last_name}`.trim(),
-        email: email.toLowerCase(),
-        password,
-        role: 'collaborator',
-      })
+      // Reuse existing User if they already have an account (e.g. client); otherwise create new User
+      let user = await User.findOne({ email: normalizedEmail })
+      if (!user) {
+        user = await User.create({
+          name: `${first_name} ${last_name}`.trim(),
+          email: normalizedEmail,
+          password,
+          role: 'collaborator',
+        })
+      } else {
+        // Existing user: set their password to the admin-set one so the email credentials work
+        user.password = password
+        await user.save()
+      }
 
       const collaborator = await Collaborator.create({
         first_name,
         last_name,
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         user_id: user._id,
+        temporary_password: password,
       })
 
-      // Fire-and-forget welcome email with login credentials
+      // Always send welcome email with login email and password
       const fullName = `${first_name || ''} ${last_name || ''}`.trim() || first_name || last_name || ''
       sendCollaboratorWelcomeEmail(
-        email.toLowerCase(),
+        normalizedEmail,
         fullName,
         password
       ).catch((emailError: any) => {
@@ -123,10 +133,20 @@ export class CollaboratorController {
         )
       }
 
-      const collaborator = await Collaborator.findByIdAndDelete(collaboratorId)
-
+      const collaborator = await Collaborator.findById(collaboratorId)
       if (!collaborator) {
         return ApiResponse.notFound(res, 'Collaborator not found')
+      }
+
+      const userId = collaborator.user_id
+      await Collaborator.findByIdAndDelete(collaboratorId)
+      // Only delete the User if they were created only as a collaborator (role === 'collaborator').
+      // If the same person is also a client/admin, keep their User account and only removed the Collaborator profile.
+      if (userId) {
+        const user = await User.findById(userId)
+        if (user?.role === 'collaborator') {
+          await User.findByIdAndDelete(userId)
+        }
       }
 
       return ApiResponse.success(res, null, 'Collaborator deleted successfully')

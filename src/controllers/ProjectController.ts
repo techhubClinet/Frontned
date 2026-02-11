@@ -123,7 +123,7 @@ export class ProjectController {
   // Create new project (admin)
   static async createProject(req: Request, res: Response) {
     try {
-      const { name, client_name, client_email, project_type, service, service_price, amount, deadline } = req.body
+      const { name, client_name, client_email, project_type, service, service_price, service_description, amount, deadline, delivery_timeline, max_revisions } = req.body
 
       if (!name) {
         return ApiResponse.error(res, 'Project name is required', 400)
@@ -138,30 +138,26 @@ export class ProjectController {
         payment_status: 'pending',
       }
 
-      // Handle service selection for simple projects
+      // Handle service selection for simple projects (catalog)
       if (project_type === 'simple' && service && service !== 'Custom Service') {
-        // Store the service name and price directly (no need to link to Service model)
-        // Simple projects are accessible to anyone via link
         projectData.service_name = service
-        projectData.delivery_timeline = '30 days' // Default delivery timeline
-        
-        // Parse and store the service price
+        projectData.delivery_timeline = delivery_timeline || '30 days'
+        if (typeof service_description === 'string') projectData.service_description = service_description
+        if (typeof max_revisions === 'number' && max_revisions >= 0 && max_revisions <= 99) projectData.max_revisions = max_revisions
+
         if (service_price) {
           const price = parseFloat(service_price.toString().replace('$', '').replace(',', '').trim())
-          if (!isNaN(price)) {
-            projectData.service_price = price
-          }
+          if (!isNaN(price)) projectData.service_price = price
         }
       } else if (project_type === 'custom' || (service === 'Custom Service' && amount)) {
-        // Custom project - set default delivery timeline
         projectData.project_type = 'custom'
-        projectData.delivery_timeline = '30 days' // Default, admin can adjust
+        projectData.delivery_timeline = '30 days'
         if (amount) {
           projectData.custom_quote_amount = parseFloat(amount.toString().replace('$', '').replace(',', ''))
         }
       }
 
-      if (deadline) {
+      if (deadline && project_type !== 'simple') {
         projectData.deadline = new Date(deadline)
       }
 
@@ -237,7 +233,7 @@ export class ProjectController {
       const userEmail = (authReq.user.email || '').trim()
       const newProject = await Project.create({
         name: template.name,
-        client_name: authReq.user.name || 'Client',
+        client_name: 'Client',
         client_email: userEmail,
         project_type: 'simple',
         service_name: template.service_name,
@@ -277,9 +273,28 @@ export class ProjectController {
     try {
       const { projectId } = req.params
       const { status, notes } = req.body
+      const authReq = req as AuthRequest
 
       if (!status) {
         return ApiResponse.error(res, 'Status is required', 400)
+      }
+
+      // Only the client can request revision (via claim-revision). Collaborators must not set status to 'revision'.
+      if (status === 'revision' && authReq.user?.role === 'collaborator') {
+        return ApiResponse.error(
+          res,
+          'Only the client can request a revision. Use your dashboard to update progress (e.g. In Progress, Review).',
+          403
+        )
+      }
+
+      // Only client (after acceptance) or admin can mark completed. Collaborators must not set status to 'completed'.
+      if (status === 'completed' && authReq.user?.role === 'collaborator') {
+        return ApiResponse.error(
+          res,
+          'Only the client or admin can mark the project as completed. Please use In Progress or Review to update delivery status.',
+          403
+        )
       }
 
       // Check if project exists
@@ -499,6 +514,81 @@ export class ProjectController {
       }
 
       return ApiResponse.success(res, project, 'Collaborator unassigned successfully')
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500)
+    }
+  }
+
+  // Update project settings (admin only), e.g. max_revisions
+  static async updateProjectSettings(req: Request, res: Response) {
+    try {
+      const authReq = req as AuthRequest
+      if (authReq.user?.role !== 'admin') {
+        return ApiResponse.error(res, 'Only admin can update project settings', 403)
+      }
+
+      const { projectId } = req.params
+      const { max_revisions } = req.body
+
+      const project = await Project.findById(projectId)
+      if (!project) {
+        return ApiResponse.notFound(res, 'Project not found')
+      }
+
+      const update: any = { updated_at: new Date() }
+      if (typeof max_revisions === 'number' && max_revisions >= 0 && max_revisions <= 99) {
+        update.max_revisions = max_revisions
+      }
+
+      const updatedProject = await Project.findByIdAndUpdate(projectId, update, { new: true })
+      if (!updatedProject) {
+        return ApiResponse.notFound(res, 'Project not found')
+      }
+
+      return ApiResponse.success(res, updatedProject, 'Project settings updated')
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500)
+    }
+  }
+
+  // Update catalog item (admin only) – for predefined/simple projects: name, price, description, delivery, revisions
+  static async updateCatalogItem(req: Request, res: Response) {
+    try {
+      const authReq = req as AuthRequest
+      if (authReq.user?.role !== 'admin') {
+        return ApiResponse.error(res, 'Only admin can edit catalog items', 403)
+      }
+
+      const { projectId } = req.params
+      const { name, service_name, service_price, service_description, delivery_timeline, max_revisions } = req.body
+
+      const project = await Project.findById(projectId)
+      if (!project) {
+        return ApiResponse.notFound(res, 'Project not found')
+      }
+      if (project.project_type !== 'simple') {
+        return ApiResponse.error(res, 'Only predefined (catalog) projects can be edited here', 400)
+      }
+
+      const set: any = { updated_at: new Date() }
+      if (typeof name === 'string' && name.trim()) set.name = name.trim()
+      if (typeof service_name === 'string') set.service_name = service_name.trim() || undefined
+      if (typeof service_description === 'string') set.service_description = service_description.trim() || undefined
+      if (typeof delivery_timeline === 'string' && delivery_timeline.trim()) set.delivery_timeline = delivery_timeline.trim()
+      if (service_price !== undefined && service_price !== null && service_price !== '') {
+        const price = typeof service_price === 'number'
+          ? service_price
+          : parseFloat(String(service_price).replace(/\$/g, '').replace(/,/g, '').trim())
+        if (!isNaN(price) && price >= 0) set.service_price = price
+      }
+      if (typeof max_revisions === 'number' && max_revisions >= 0 && max_revisions <= 99) set.max_revisions = max_revisions
+
+      const updatedProject = await Project.findByIdAndUpdate(projectId, { $set: set }, { new: true })
+      if (!updatedProject) {
+        return ApiResponse.notFound(res, 'Project not found')
+      }
+
+      return ApiResponse.success(res, updatedProject, 'Catalog item updated')
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500)
     }
