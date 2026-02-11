@@ -4,9 +4,9 @@ import nodemailer from 'nodemailer'
 const GMAIL_USER = 'aryanarshadlex5413@gmail.com'
 const GMAIL_APP_PASSWORD = 'gpua cmsh kixf sadu'.replace(/\s/g, '') // strip spaces for SMTP
 
-const LOCAL_FRONTEND = 'http://localhost:5173'
-const DEPLOYED_FRONTEND = 'https://frontned-mblv.vercel.app'
-const FRONTEND_URL = process.env.VERCEL === '1' ? DEPLOYED_FRONTEND : LOCAL_FRONTEND
+// Always use the deployed frontend URL in emails (no localhost links)
+// You can override this in production by setting FRONTEND_URL in the env.
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://frontned-mblv.vercel.app'
 
 const createTransporter = () => {
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
@@ -141,9 +141,7 @@ export const sendCollaboratorWelcomeEmail = async (
   password: string
 ) => {
   const transporter = createTransporter()
-  const loginUrl = `${FRONTEND_URL}/login?redirect=/collaborator/projects`
-
-  console.log('\n' + '='.repeat(80))
+  const loginUrl = `${FRONTEND_URL}/login?redirect=/collaborator/projects`  console.log('\n' + '='.repeat(80))
   console.log('📧 COLLABORATOR WELCOME EMAIL (Email would be sent to:', collaboratorEmail, ')')
   console.log('='.repeat(80))
   console.log('👤 Collaborator:', collaboratorName)
