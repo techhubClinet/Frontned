@@ -29,11 +29,8 @@ export const connectDatabase = async () => {
     return cachedConnection
   } catch (error) {
     console.error('❌ MongoDB connection error:', error)
-    // In serverless, don't exit process, just throw
-    if (process.env.VERCEL === '1') {
-      throw error
-    }
-    process.exit(1)
+    // Always throw so the caller (local server or serverless) can handle the error
+    throw error
   }
 }
 

@@ -42,9 +42,7 @@ export class PaymentController {
 
       // Create Stripe checkout session
       const stripe = getStripe()
-      const LOCAL_FRONTEND = 'http://localhost:5173'
-      const DEPLOYED_FRONTEND = 'https://frontned-mblv.vercel.app'
-      const FRONTEND_URL = process.env.VERCEL === '1' ? DEPLOYED_FRONTEND : LOCAL_FRONTEND
+      const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [

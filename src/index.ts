@@ -22,11 +22,9 @@ const app = express()
 const PORT = 3001
 
 // Middleware
-// CORS configuration - support both local and deployed frontend
+// CORS configuration - support both local and deployed frontend (no env)
 const LOCAL_FRONTEND = 'http://localhost:5173'
 const DEPLOYED_FRONTEND = 'https://frontned-mblv.vercel.app'
-// Use deployed URL on Vercel, localhost when running locally
-const FRONTEND_URL = process.env.VERCEL === '1' ? DEPLOYED_FRONTEND : LOCAL_FRONTEND
 const allowedOrigins = [LOCAL_FRONTEND, 'http://127.0.0.1:5173', DEPLOYED_FRONTEND]
 
 app.use(cors({
@@ -77,19 +75,17 @@ app.use('/api/notifications', notificationRoutes)
 // Error handling
 app.use(errorHandler)
 
-// Export app for Vercel serverless functions
+// Export app for Vercel serverless functions and local usage
 export default app
 
-// Connect to database and start server (only in non-serverless environments)
-if (process.env.VERCEL !== '1') {
+// Connect to database and start server when running locally via `node dist/index.js`
+// Vercel will use the default export and won't call this block.
+if (require.main === module) {
   connectDatabase().then(() => {
     app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`)
       console.log(`📡 API endpoints available at http://localhost:${PORT}/api`)
       console.log(`☁️  Cloudinary configured for image uploads`)
     })
-  })
-} else {
-  // In Vercel, connect to database on first request
-  connectDatabase().catch(console.error)
+  }).catch(console.error)
 }

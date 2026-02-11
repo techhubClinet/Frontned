@@ -4,9 +4,8 @@ import nodemailer from 'nodemailer'
 const GMAIL_USER = 'aryanarshadlex5413@gmail.com'
 const GMAIL_APP_PASSWORD = 'gpua cmsh kixf sadu'.replace(/\s/g, '') // strip spaces for SMTP
 
-// Always use the deployed frontend URL in emails (no localhost links)
-// You can override this in production by setting FRONTEND_URL in the env.
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://frontned-mblv.vercel.app'
+// Always use the deployed frontend URL in emails (no localhost links, no env)
+const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
 
 const createTransporter = () => {
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
@@ -345,9 +344,7 @@ export const sendAdminInvoiceUploadedEmail = async (
 ) => {
   if (!adminEmails.length) return { success: false, error: 'No admin emails' }
 
-  const LOCAL_FRONTEND = 'http://localhost:5173'
-  const DEPLOYED_FRONTEND = 'https://frontned-mblv.vercel.app'
-  const FRONTEND_URL = process.env.VERCEL === '1' ? DEPLOYED_FRONTEND : LOCAL_FRONTEND
+  const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
   const adminProjectsUrl = `${FRONTEND_URL}/admin/projects`
   const projectDetailUrl = options.projectId ? `${FRONTEND_URL}/admin/projects/${options.projectId}` : adminProjectsUrl
 
