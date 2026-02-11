@@ -23,8 +23,12 @@ router.get('/:projectId', validation_1.validateProjectId, auth_1.optionalAuth, P
 router.get('/:projectId/details', validation_1.validateProjectId, auth_1.optionalAuth, ProjectController_1.ProjectController.getProjectDetails);
 // Update service selection
 router.post('/:projectId/service', validation_1.validateProjectId, validation_1.validateServiceSelection, ProjectController_1.ProjectController.updateServiceSelection);
-// Update project status
-router.patch('/:projectId/status', validation_1.validateProjectId, ProjectController_1.ProjectController.updateStatus);
+// Update project status (authenticated; collaborator cannot set status to 'revision')
+router.patch('/:projectId/status', validation_1.validateProjectId, auth_1.authenticate, ProjectController_1.ProjectController.updateStatus);
+// Update project settings (admin only, e.g. max_revisions)
+router.patch('/:projectId/settings', validation_1.validateProjectId, auth_1.authenticate, ProjectController_1.ProjectController.updateProjectSettings);
+// Update catalog item (admin only – predefined service: name, price, description, delivery, revisions)
+router.patch('/:projectId/catalog', validation_1.validateProjectId, auth_1.authenticate, ProjectController_1.ProjectController.updateCatalogItem);
 // Claim revision (client)
 router.post('/:projectId/claim-revision', validation_1.validateProjectId, ProjectController_1.ProjectController.claimRevision);
 // Assign collaborator

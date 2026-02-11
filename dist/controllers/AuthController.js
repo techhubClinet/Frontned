@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
 const User_1 = require("../models/User");
+const Collaborator_1 = require("../models/Collaborator");
 const response_1 = require("../views/response");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 // Hardcoded JWT secret
@@ -44,6 +45,7 @@ class AuthController {
                     name: user.name,
                     email: user.email,
                     role: user.role,
+                    isCollaborator: false,
                 },
                 token,
             }, 'User created successfully', 201);
@@ -79,6 +81,8 @@ class AuthController {
             if (!isMatch) {
                 return response_1.ApiResponse.error(res, 'Invalid email or password', 401);
             }
+            // User can be both client and collaborator (same email); frontend uses this to show collaborator access
+            const collaboratorProfile = await Collaborator_1.Collaborator.findOne({ user_id: user._id });
             // Generate token
             const token = generateToken(user._id.toString(), user.email, user.role);
             return response_1.ApiResponse.success(res, {
@@ -87,6 +91,7 @@ class AuthController {
                     name: user.name,
                     email: user.email,
                     role: user.role,
+                    isCollaborator: !!collaboratorProfile,
                 },
                 token,
             });
@@ -106,11 +111,13 @@ class AuthController {
             if (!user) {
                 return response_1.ApiResponse.error(res, 'User not found', 404);
             }
+            const collaboratorProfile = await Collaborator_1.Collaborator.findOne({ user_id: user._id });
             return response_1.ApiResponse.success(res, {
                 id: user._id,
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                isCollaborator: !!collaboratorProfile,
             });
         }
         catch (error) {

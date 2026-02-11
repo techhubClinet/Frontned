@@ -3,9 +3,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-// Vercel serverless function entry point
-const index_1 = __importDefault(require("../src/index"));
-const database_1 = require("../src/config/database");
+// Vercel serverless function entry point (compiled JS, use dist for runtime)
+const index_1 = __importDefault(require("../dist/index"));
+const database_1 = require("../dist/config/database");
 // Connect to database on cold start (Vercel serverless)
 let isConnected = false;
 const connectDB = async () => {

@@ -33,19 +33,22 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Collaborator = void 0;
+exports.Notification = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
-const CollaboratorSchema = new mongoose_1.Schema({
-    first_name: { type: String, required: true },
-    last_name: { type: String, required: true },
-    email: { type: String, required: true, unique: true, lowercase: true },
-    user_id: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
-    temporary_password: { type: String },
-    stripe_account_id: { type: String },
-    payouts_enabled: { type: Boolean, default: false },
-    charges_enabled: { type: Boolean, default: false },
-    invoice_type: { type: String, enum: ['per-project', 'monthly'], default: 'per-project' },
-}, {
-    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
-});
-exports.Collaborator = mongoose_1.default.model('Collaborator', CollaboratorSchema);
+const NotificationSchema = new mongoose_1.Schema({
+    recipient: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
+    type: {
+        type: String,
+        enum: ['invoice_uploaded', 'monthly_invoice_uploaded'],
+        required: true,
+    },
+    read: { type: Boolean, default: false },
+    data: {
+        projectId: String,
+        projectName: String,
+        collaboratorName: String,
+        month: String,
+        projectsCount: Number,
+    },
+}, { timestamps: { createdAt: 'created_at', updatedAt: false } });
+exports.Notification = mongoose_1.default.model('Notification', NotificationSchema);

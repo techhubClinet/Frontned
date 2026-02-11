@@ -6,6 +6,7 @@ const User_1 = require("../models/User");
 const Project_1 = require("../models/Project");
 const response_1 = require("../views/response");
 const stripe_1 = require("../config/stripe");
+const emailService_1 = require("../services/emailService");
 class CollaboratorController {
     // Get all collaborators
     static async getAllCollaborators(req, res) {
@@ -38,23 +39,38 @@ class CollaboratorController {
             if (!first_name || !last_name || !email || !password) {
                 return response_1.ApiResponse.error(res, 'First name, last name, email and password are required', 400);
             }
-            // Ensure email is not already used by another user
-            const existingUser = await User_1.User.findOne({ email: email.toLowerCase() });
-            if (existingUser) {
-                return response_1.ApiResponse.error(res, 'A user with this email already exists', 400);
+            const normalizedEmail = email.toLowerCase();
+            // Ensure email is not already used by another collaborator
+            const existingCollaborator = await Collaborator_1.Collaborator.findOne({ email: normalizedEmail });
+            if (existingCollaborator) {
+                return response_1.ApiResponse.error(res, 'A collaborator with this email already exists', 400);
             }
-            // Create a User record for collaborator login
-            const user = await User_1.User.create({
-                name: `${first_name} ${last_name}`.trim(),
-                email: email.toLowerCase(),
-                password,
-                role: 'collaborator',
-            });
+            // Reuse existing User if they already have an account (e.g. client); otherwise create new User
+            let user = await User_1.User.findOne({ email: normalizedEmail });
+            if (!user) {
+                user = await User_1.User.create({
+                    name: `${first_name} ${last_name}`.trim(),
+                    email: normalizedEmail,
+                    password,
+                    role: 'collaborator',
+                });
+            }
+            else {
+                // Existing user: set their password to the admin-set one so the email credentials work
+                user.password = password;
+                await user.save();
+            }
             const collaborator = await Collaborator_1.Collaborator.create({
                 first_name,
                 last_name,
-                email: email.toLowerCase(),
+                email: normalizedEmail,
                 user_id: user._id,
+                temporary_password: password,
+            });
+            // Always send welcome email with login email and password
+            const fullName = `${first_name || ''} ${last_name || ''}`.trim() || first_name || last_name || '';
+            (0, emailService_1.sendCollaboratorWelcomeEmail)(normalizedEmail, fullName, password).catch((emailError) => {
+                console.error('Failed to send collaborator welcome email:', emailError?.message || emailError);
             });
             return response_1.ApiResponse.success(res, collaborator, 'Collaborator created successfully', 201);
         }
@@ -89,9 +105,19 @@ class CollaboratorController {
             if (projectsWithCollaborator.length > 0) {
                 return response_1.ApiResponse.error(res, `Cannot delete collaborator. They are assigned to ${projectsWithCollaborator.length} project(s). Please unassign them first.`, 400);
             }
-            const collaborator = await Collaborator_1.Collaborator.findByIdAndDelete(collaboratorId);
+            const collaborator = await Collaborator_1.Collaborator.findById(collaboratorId);
             if (!collaborator) {
                 return response_1.ApiResponse.notFound(res, 'Collaborator not found');
+            }
+            const userId = collaborator.user_id;
+            await Collaborator_1.Collaborator.findByIdAndDelete(collaboratorId);
+            // Only delete the User if they were created only as a collaborator (role === 'collaborator').
+            // If the same person is also a client/admin, keep their User account and only removed the Collaborator profile.
+            if (userId) {
+                const user = await User_1.User.findById(userId);
+                if (user?.role === 'collaborator') {
+                    await User_1.User.findByIdAndDelete(userId);
+                }
             }
             return response_1.ApiResponse.success(res, null, 'Collaborator deleted successfully');
         }
@@ -160,9 +186,7 @@ class CollaboratorController {
                 collaborator.stripe_account_id = accountId;
                 await collaborator.save();
             }
-            const LOCAL_FRONTEND = 'http://localhost:5173';
-            const DEPLOYED_FRONTEND = 'https://internal-frontend-two.vercel.app';
-            const FRONTEND_URL = process.env.VERCEL === '1' ? DEPLOYED_FRONTEND : LOCAL_FRONTEND;
+            const FRONTEND_URL = 'https://frontned-mblv.vercel.app';
             const refreshUrl = `${FRONTEND_URL}/collaborator/stripe/refresh`;
             const returnUrl = `${FRONTEND_URL}/collaborator/stripe/return`;
             const accountLink = await stripe.accountLinks.create({

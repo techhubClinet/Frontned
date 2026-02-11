@@ -19,30 +19,15 @@ const briefingRoutes_1 = __importDefault(require("./routes/briefingRoutes"));
 const uploadRoutes_1 = __importDefault(require("./routes/uploadRoutes"));
 const customQuoteRoutes_1 = __importDefault(require("./routes/customQuoteRoutes"));
 const collaboratorRoutes_1 = __importDefault(require("./routes/collaboratorRoutes"));
+const notificationRoutes_1 = __importDefault(require("./routes/notificationRoutes"));
 const app = (0, express_1.default)();
 const PORT = 3001;
 // Middleware
-// CORS configuration - support both local and deployed frontend
-const LOCAL_FRONTEND = 'http://localhost:5173';
-const DEPLOYED_FRONTEND = 'https://internal-frontend-two.vercel.app';
-// Use deployed URL on Vercel, localhost when running locally
-const FRONTEND_URL = process.env.VERCEL === '1' ? DEPLOYED_FRONTEND : LOCAL_FRONTEND;
-const allowedOrigins = [LOCAL_FRONTEND, 'http://127.0.0.1:5173', DEPLOYED_FRONTEND];
+// CORS configuration - allow access from anywhere (Access-Control-Allow-Origin: *)
+// NOTE: Since we use bearer tokens and not cookies, we don't need credentials here.
 app.use((0, cors_1.default)({
-    origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin)
-            return callback(null, true);
-        // Allow specific origins
-        if (allowedOrigins.includes(origin)) {
-            callback(null, true);
-        }
-        else {
-            // In development, allow all origins for easier testing
-            callback(null, true);
-        }
-    },
-    credentials: true,
+    origin: '*',
+    credentials: false,
 }));
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
@@ -70,21 +55,19 @@ app.use('/api/briefings', briefingRoutes_1.default);
 app.use('/api/upload', uploadRoutes_1.default);
 app.use('/api/custom-quotes', customQuoteRoutes_1.default);
 app.use('/api/collaborators', collaboratorRoutes_1.default);
+app.use('/api/notifications', notificationRoutes_1.default);
 // Error handling
 app.use(errorHandler_1.errorHandler);
-// Export app for Vercel serverless functions
+// Export app for Vercel serverless functions and local usage
 exports.default = app;
-// Connect to database and start server (only in non-serverless environments)
-if (process.env.VERCEL !== '1') {
+// Connect to database and start server when running locally via `node dist/index.js`
+// Vercel will use the default export and won't call this block.
+if (require.main === module) {
     (0, database_1.connectDatabase)().then(() => {
         app.listen(PORT, () => {
             console.log(`🚀 Server running on http://localhost:${PORT}`);
             console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
             console.log(`☁️  Cloudinary configured for image uploads`);
         });
-    });
-}
-else {
-    // In Vercel, connect to database on first request
-    (0, database_1.connectDatabase)().catch(console.error);
+    }).catch(console.error);
 }

@@ -1,6 +1,7 @@
 // Vercel serverless function entry point
-import app from '../src/index'
-import { connectDatabase } from '../src/config/database'
+// IMPORTANT: Use compiled JS from dist in the serverless runtime
+import app from '../dist/index'
+import { connectDatabase } from '../dist/config/database'
 
 // Connect to database on cold start (Vercel serverless)
 let isConnected = false

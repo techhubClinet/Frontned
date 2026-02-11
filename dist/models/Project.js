@@ -59,6 +59,7 @@ const ProjectSchema = new mongoose_1.Schema({
     selected_service: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Service' },
     service_name: { type: String },
     service_price: { type: Number },
+    service_description: { type: String },
     custom_quote_amount: { type: Number },
     custom_quote_request: { type: mongoose_1.Schema.Types.ObjectId, ref: 'CustomQuote' },
     custom_quote_description: { type: String },

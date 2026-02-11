@@ -6,9 +6,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UploadController = void 0;
 const Project_1 = require("../models/Project");
 const Collaborator_1 = require("../models/Collaborator");
+const User_1 = require("../models/User");
 const response_1 = require("../views/response");
 const cloudinary_1 = __importDefault(require("../config/cloudinary"));
 const stream_1 = require("stream");
+const emailService_1 = require("../services/emailService");
+const Notification_1 = require("../models/Notification");
 class UploadController {
     // Upload image to Cloudinary
     static async uploadImage(req, res) {
@@ -83,7 +86,7 @@ class UploadController {
             const { projectId } = req.params;
             const file = req.file;
             // Verify project exists and is assigned to a collaborator
-            const project = await Project_1.Project.findById(projectId);
+            const project = await Project_1.Project.findById(projectId).populate('assigned_collaborator', 'first_name last_name');
             if (!project) {
                 return response_1.ApiResponse.notFound(res, 'Project not found');
             }
@@ -124,6 +127,42 @@ class UploadController {
                         invoice_type: 'per-project',
                         updated_at: new Date(),
                     });
+                    // Create in-app notifications for each admin (fire-and-forget)
+                    const collab = project.assigned_collaborator;
+                    const collaboratorName = collab?.first_name || collab?.last_name
+                        ? [collab.first_name, collab.last_name].filter(Boolean).join(' ')
+                        : undefined;
+                    User_1.User.find({ role: 'admin' })
+                        .then((admins) => {
+                        if (admins.length === 0)
+                            return;
+                        return Notification_1.Notification.insertMany(admins.map((a) => ({
+                            recipient: a._id,
+                            type: 'invoice_uploaded',
+                            read: false,
+                            data: {
+                                projectId: projectId.toString(),
+                                projectName: project.name,
+                                collaboratorName,
+                            },
+                        })));
+                    })
+                        .then(() => { })
+                        .catch((err) => console.error('Notification create error:', err));
+                    // Email admin(s) (optional, keep existing behavior)
+                    User_1.User.find({ role: 'admin' })
+                        .then((admins) => admins.map((a) => a.email).filter(Boolean))
+                        .then((adminEmails) => {
+                        if (adminEmails.length === 0)
+                            return;
+                        return (0, emailService_1.sendAdminInvoiceUploadedEmail)(adminEmails, {
+                            kind: 'per-project',
+                            projectName: project.name,
+                            projectId: projectId.toString(),
+                            collaboratorName,
+                        });
+                    })
+                        .catch((err) => console.error('Admin invoice notification error:', err));
                     response_1.ApiResponse.success(res, {
                         url: result.secure_url,
                         public_id: result.public_id,
@@ -373,6 +412,40 @@ class UploadController {
                         updated_at: new Date(),
                     }));
                     await Promise.all(updatePromises);
+                    // Create in-app notifications for each admin (fire-and-forget)
+                    const collaboratorName = collaborator.first_name || collaborator.last_name
+                        ? [collaborator.first_name, collaborator.last_name].filter(Boolean).join(' ')
+                        : undefined;
+                    User_1.User.find({ role: 'admin' })
+                        .then((admins) => {
+                        if (admins.length === 0)
+                            return;
+                        return Notification_1.Notification.insertMany(admins.map((a) => ({
+                            recipient: a._id,
+                            type: 'monthly_invoice_uploaded',
+                            read: false,
+                            data: {
+                                month,
+                                projectsCount: projects.length,
+                                collaboratorName,
+                            },
+                        })));
+                    })
+                        .then(() => { })
+                        .catch((err) => console.error('Notification create error:', err));
+                    User_1.User.find({ role: 'admin' })
+                        .then((admins) => admins.map((a) => a.email).filter(Boolean))
+                        .then((adminEmails) => {
+                        if (adminEmails.length === 0)
+                            return;
+                        return (0, emailService_1.sendAdminInvoiceUploadedEmail)(adminEmails, {
+                            kind: 'monthly',
+                            month,
+                            projectsCount: projects.length,
+                            collaboratorName,
+                        });
+                    })
+                        .catch((err) => console.error('Admin monthly invoice notification error:', err));
                     // Calculate total amount
                     const totalAmount = projects.reduce((sum, project) => {
                         return sum + (project.collaborator_payment_amount || 0);

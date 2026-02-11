@@ -140,7 +140,8 @@ export const sendCollaboratorWelcomeEmail = async (
   password: string
 ) => {
   const transporter = createTransporter()
-  const loginUrl = `${FRONTEND_URL}/login?redirect=/collaborator/projects`  console.log('\n' + '='.repeat(80))
+  const loginUrl = `${FRONTEND_URL}/login?redirect=/collaborator/projects`
+  console.log('\n' + '='.repeat(80))
   console.log('📧 COLLABORATOR WELCOME EMAIL (Email would be sent to:', collaboratorEmail, ')')
   console.log('='.repeat(80))
   console.log('👤 Collaborator:', collaboratorName)
