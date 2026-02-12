@@ -272,7 +272,7 @@ export class ProjectController {
   static async updateStatus(req: Request, res: Response) {
     try {
       const { projectId } = req.params
-      const { status, notes } = req.body
+      const { status, notes, notes_key } = req.body
       const authReq = req as AuthRequest
 
       if (!status) {
@@ -314,8 +314,12 @@ export class ProjectController {
       }
       
       if (typeof notes === 'string' && notes.trim().length > 0) {
-        // Store note under the specific status key (e.g. status_notes.review)
-        update[`status_notes.${status}`] = notes.trim()
+        // Store note under a specific key in status_notes (default: the status name)
+        const key =
+          typeof notes_key === 'string' && notes_key.trim().length > 0
+            ? notes_key.trim()
+            : status
+        update[`status_notes.${key}`] = notes.trim()
       }
 
       const updatedProject = await Project.findByIdAndUpdate(projectId, update, { new: true })
