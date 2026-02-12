@@ -302,7 +302,21 @@ export const sendCollaboratorProjectAssignedEmail = async (
                 <p>You have been assigned to a new project:</p>
                 <p><strong>${projectName}</strong></p>
                 <div class="btn-wrap">
-                  <a href="${projectUrl}" style="display: inline-block; padding: 12px 24px; background-color: #16a34a; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">Open Project</a>
+                  <a
+                    href="${projectUrl}"
+                    style="
+                      display: inline-block;
+                      padding: 12px 24px;
+                      background-color: #ea580c;
+                      color: #ffffff;
+                      text-decoration: none;
+                      border-radius: 8px;
+                      font-weight: 600;
+                      font-size: 15px;
+                    "
+                  >
+                    Open Project
+                  </a>
                 </div>
                 <p class="secondary-link">
                   Or view all your projects here:<br />
