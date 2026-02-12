@@ -6,6 +6,7 @@ import express from 'express'
 import cors from 'cors'
 import { connectDatabase } from './config/database'
 import { errorHandler } from './middleware/errorHandler'
+import { sendClientDashboardEmail } from './services/emailService'
 
 // Routes
 import authRoutes from './routes/authRoutes'
@@ -45,6 +46,23 @@ app.use('/api', async (req, res, next) => {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' })
+})
+
+// TEMP: simple test endpoint to send a styled email to verify logo/layout.
+// Hit: GET http://localhost:3001/api/test-email
+app.get('/api/test-email', async (req, res) => {
+  try {
+    await sendClientDashboardEmail(
+      'aryanarshad5413@gmail.com',
+      'Test Client',
+      'TEST_PROJECT_ID',
+      'Test Project for Styling'
+    )
+    res.json({ success: true, message: 'Test email sent to aryanarshad5413@gmail.com' })
+  } catch (err: any) {
+    console.error('Failed to send test email:', err?.message || err)
+    res.status(500).json({ success: false, message: err?.message || 'Failed to send test email' })
+  }
 })
 
 // API Routes

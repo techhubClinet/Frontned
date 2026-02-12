@@ -29,6 +29,8 @@ router.patch('/:projectId/status', validation_1.validateProjectId, auth_1.authen
 router.patch('/:projectId/settings', validation_1.validateProjectId, auth_1.authenticate, ProjectController_1.ProjectController.updateProjectSettings);
 // Update catalog item (admin only – predefined service: name, price, description, delivery, revisions)
 router.patch('/:projectId/catalog', validation_1.validateProjectId, auth_1.authenticate, ProjectController_1.ProjectController.updateCatalogItem);
+// Delete catalog item (admin only – remove predefined/simple project template)
+router.delete('/:projectId/catalog', validation_1.validateProjectId, auth_1.authenticate, ProjectController_1.ProjectController.deleteCatalogItem);
 // Claim revision (client)
 router.post('/:projectId/claim-revision', validation_1.validateProjectId, ProjectController_1.ProjectController.claimRevision);
 // Assign collaborator

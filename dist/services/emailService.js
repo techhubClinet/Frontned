@@ -60,8 +60,10 @@ const sendClientDashboardEmail = async (clientEmail, clientName, projectId, proj
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background: #f3f4f6; }
             .container { max-width: 560px; margin: 0 auto; padding: 24px; }
             .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-            .header { background: #ea580c; padding: 24px 20px; text-align: center; }
-            .header h1 { margin: 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
+            .header { background: #ea580c; padding: 26px 20px 20px; text-align: center; }
+            .logo-wrap { display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+            .logo-wrap img { display: block; width: 96px; height: 96px; border-radius: 16px; object-fit: contain; background: #ea580c; border: 2px solid rgba(255,255,255,0.7); }
+            .header h1 { margin: 6px 0 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
             .content { padding: 28px 24px; background: #ffffff; color: #374151; }
             .content p { margin: 0 0 1rem; font-size: 15px; }
             .btn-wrap { text-align: center; margin: 24px 0; }
@@ -73,6 +75,9 @@ const sendClientDashboardEmail = async (clientEmail, clientName, projectId, proj
           <div class="container">
             <div class="card">
               <div class="header">
+                <div class="logo-wrap">
+                  <img src="${FRONTEND_URL}/logo.jpeg" alt="KANRI logo" />
+                </div>
                 <h1>Your Project is Ready!</h1>
               </div>
               <div class="content">
@@ -154,8 +159,10 @@ const sendCollaboratorWelcomeEmail = async (collaboratorEmail, collaboratorName,
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background: #f3f4f6; }
             .container { max-width: 560px; margin: 0 auto; padding: 24px; }
             .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-            .header { background: #1d4ed8; padding: 24px 20px; text-align: center; }
-            .header h1 { margin: 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
+            .header { background: #ea580c; padding: 26px 20px 20px; text-align: center; }
+            .logo-wrap { display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+            .logo-wrap img { display: block; width: 96px; height: 96px; border-radius: 16px; object-fit: contain; background: #ea580c; border: 2px solid rgba(255,255,255,0.7); }
+            .header h1 { margin: 6px 0 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
             .content { padding: 28px 24px; }
             .content p { margin: 0 0 1rem; font-size: 15px; }
             .credentials { background: #f9fafb; border-radius: 8px; padding: 12px 14px; border: 1px solid #e5e7eb; font-size: 13px; }
@@ -168,6 +175,9 @@ const sendCollaboratorWelcomeEmail = async (collaboratorEmail, collaboratorName,
           <div class="container">
             <div class="card">
               <div class="header">
+                <div class="logo-wrap">
+                  <img src="${FRONTEND_URL}/logo.jpeg" alt="KANRI logo" />
+                </div>
                 <h1>Collaborator Access</h1>
               </div>
               <div class="content">
@@ -249,8 +259,10 @@ const sendCollaboratorProjectAssignedEmail = async (collaboratorEmail, collabora
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background: #f3f4f6; }
             .container { max-width: 560px; margin: 0 auto; padding: 24px; }
             .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-            .header { background: #16a34a; padding: 24px 20px; text-align: center; }
-            .header h1 { margin: 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
+            .header { background: #ea580c; padding: 26px 20px 20px; text-align: center; }
+            .logo-wrap { display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+            .logo-wrap img { display: block; width: 96px; height: 96px; border-radius: 16px; object-fit: contain; background: #ea580c; border: 2px solid rgba(255,255,255,0.7); }
+            .header h1 { margin: 6px 0 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
             .content { padding: 28px 24px; }
             .content p { margin: 0 0 1rem; font-size: 15px; }
             .btn-wrap { text-align: center; margin: 24px 0 8px; }
@@ -262,6 +274,9 @@ const sendCollaboratorProjectAssignedEmail = async (collaboratorEmail, collabora
           <div class="container">
             <div class="card">
               <div class="header">
+                <div class="logo-wrap">
+                  <img src="${FRONTEND_URL}/logo.jpeg" alt="KANRI logo" />
+                </div>
                 <h1>New Project Assigned</h1>
               </div>
               <div class="content">
@@ -349,8 +364,10 @@ const sendAdminInvoiceUploadedEmail = async (adminEmails, options) => {
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background: #f3f4f6; }
             .container { max-width: 560px; margin: 0 auto; padding: 24px; }
             .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-            .header { background: #1d4ed8; padding: 24px 20px; text-align: center; }
-            .header h1 { margin: 0; font-size: 1.25rem; font-weight: 700; color: #ffffff; }
+            .header { background: #ea580c; padding: 22px 20px 18px; text-align: center; }
+            .logo-wrap { display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+            .logo-wrap img { display: block; width: 72px; height: 72px; border-radius: 12px; object-fit: cover; border: 2px solid rgba(255,255,255,0.7); }
+            .header h1 { margin: 6px 0 0; font-size: 1.25rem; font-weight: 700; color: #ffffff; }
             .content { padding: 28px 24px; }
             .content p { margin: 0 0 1rem; font-size: 15px; }
             .btn-wrap { text-align: center; margin: 24px 0; }
@@ -360,7 +377,12 @@ const sendAdminInvoiceUploadedEmail = async (adminEmails, options) => {
         <body>
           <div class="container">
             <div class="card">
-              <div class="header"><h1>Invoice uploaded</h1></div>
+              <div class="header">
+                <div class="logo-wrap">
+                  <img src="${FRONTEND_URL}/logo.jpeg" alt="KANRI logo" />
+                </div>
+                <h1>Invoice uploaded</h1>
+              </div>
               <div class="content">${bodyHtml}</div>
             </div>
             <div class="footer"><p>This is an automated admin notification.</p></div>

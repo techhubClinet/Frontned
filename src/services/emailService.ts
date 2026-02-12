@@ -66,9 +66,9 @@ export const sendClientDashboardEmail = async (
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background: #f3f4f6; }
             .container { max-width: 560px; margin: 0 auto; padding: 24px; }
             .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-            .header { background: #ea580c; padding: 22px 20px 18px; text-align: center; }
-            .logo-wrap { display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
-            .logo-wrap img { display: block; width: 72px; height: 72px; border-radius: 12px; object-fit: cover; border: 2px solid rgba(255,255,255,0.7); }
+            .header { background: #ea580c; padding: 26px 20px 20px; text-align: center; }
+            .logo-wrap { display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+            .logo-wrap img { display: block; width: 96px; height: 96px; border-radius: 16px; object-fit: contain; background: #ea580c; border: 2px solid rgba(255,255,255,0.7); }
             .header h1 { margin: 6px 0 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
             .content { padding: 28px 24px; background: #ffffff; color: #374151; }
             .content p { margin: 0 0 1rem; font-size: 15px; }
@@ -170,9 +170,9 @@ export const sendCollaboratorWelcomeEmail = async (
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background: #f3f4f6; }
             .container { max-width: 560px; margin: 0 auto; padding: 24px; }
             .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-            .header { background: #ea580c; padding: 22px 20px 18px; text-align: center; }
-            .logo-wrap { display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
-            .logo-wrap img { display: block; width: 72px; height: 72px; border-radius: 12px; object-fit: cover; border: 2px solid rgba(255,255,255,0.7); }
+            .header { background: #ea580c; padding: 26px 20px 20px; text-align: center; }
+            .logo-wrap { display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+            .logo-wrap img { display: block; width: 96px; height: 96px; border-radius: 16px; object-fit: contain; background: #ea580c; border: 2px solid rgba(255,255,255,0.7); }
             .header h1 { margin: 6px 0 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
             .content { padding: 28px 24px; }
             .content p { margin: 0 0 1rem; font-size: 15px; }
@@ -277,9 +277,9 @@ export const sendCollaboratorProjectAssignedEmail = async (
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background: #f3f4f6; }
             .container { max-width: 560px; margin: 0 auto; padding: 24px; }
             .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-            .header { background: #ea580c; padding: 22px 20px 18px; text-align: center; }
-            .logo-wrap { display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
-            .logo-wrap img { display: block; width: 72px; height: 72px; border-radius: 12px; object-fit: cover; border: 2px solid rgba(255,255,255,0.7); }
+            .header { background: #ea580c; padding: 26px 20px 20px; text-align: center; }
+            .logo-wrap { display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+            .logo-wrap img { display: block; width: 96px; height: 96px; border-radius: 16px; object-fit: contain; background: #ea580c; border: 2px solid rgba(255,255,255,0.7); }
             .header h1 { margin: 6px 0 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
             .content { padding: 28px 24px; }
             .content p { margin: 0 0 1rem; font-size: 15px; }
@@ -434,4 +434,33 @@ export const sendAdminInvoiceUploadedEmail = async (
     console.error('❌ Admin invoice notification failed:', error.message)
     return { success: false, error: error.message }
   }
+}
+
+// TEMP: helper for manually testing email styling locally.
+// Run: `npm run build` then `node dist/services/emailService.js`
+// This block runs ONLY when this file is executed directly with Node
+async function __sendTestKanriEmail() {
+  try {
+    await sendClientDashboardEmail(
+      'aryanarshad5413@gmail.com',
+      'Test Client',
+      'TEST_PROJECT_ID',
+      'Test Project for Styling'
+    )
+    console.log('✅ Test email sent to aryanarshad5413@gmail.com')
+  } catch (err: any) {
+    console.error('❌ Failed to send test email:', err?.message || err)
+  }
+}
+
+// Only trigger the test when this module is the entrypoint (node dist/services/emailService.js)
+// Comment out this block after you’re done testing to avoid accidental sends.
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const isMain = typeof require !== 'undefined' && require.main === module
+  if (isMain) {
+    __sendTestKanriEmail().catch(console.error)
+  }
+} catch {
+  // ignore if require/module not available (e.g. in some bundlers)
 }
