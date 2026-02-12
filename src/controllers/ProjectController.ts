@@ -594,6 +594,32 @@ export class ProjectController {
     }
   }
 
+  // Delete a catalog item (admin only) – permanently remove a predefined/simple project template
+  static async deleteCatalogItem(req: Request, res: Response) {
+    try {
+      const authReq = req as AuthRequest
+      if (authReq.user?.role !== 'admin') {
+        return ApiResponse.error(res, 'Only admin can delete catalog items', 403)
+      }
+
+      const { projectId } = req.params
+
+      const project = await Project.findById(projectId)
+      if (!project) {
+        return ApiResponse.notFound(res, 'Project not found')
+      }
+      if (project.project_type !== 'simple') {
+        return ApiResponse.error(res, 'Only predefined (catalog) projects can be deleted here', 400)
+      }
+
+      await Project.findByIdAndDelete(projectId)
+
+      return ApiResponse.success(res, null, 'Catalog item deleted')
+    } catch (error: any) {
+      return ApiResponse.error(res, error.message, 500)
+    }
+  }
+
   // Claim revision (client can claim a revision)
   static async claimRevision(req: Request, res: Response) {
     try {

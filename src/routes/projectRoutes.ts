@@ -41,6 +41,9 @@ router.patch('/:projectId/settings', validateProjectId, authenticate, ProjectCon
 // Update catalog item (admin only – predefined service: name, price, description, delivery, revisions)
 router.patch('/:projectId/catalog', validateProjectId, authenticate, ProjectController.updateCatalogItem)
 
+// Delete catalog item (admin only – remove predefined/simple project template)
+router.delete('/:projectId/catalog', validateProjectId, authenticate, ProjectController.deleteCatalogItem)
+
 // Claim revision (client)
 router.post('/:projectId/claim-revision', validateProjectId, ProjectController.claimRevision)
 

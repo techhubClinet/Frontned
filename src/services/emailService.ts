@@ -66,8 +66,11 @@ export const sendClientDashboardEmail = async (
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background: #f3f4f6; }
             .container { max-width: 560px; margin: 0 auto; padding: 24px; }
             .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-            .header { background: #ea580c; padding: 24px 20px; text-align: center; }
-            .header h1 { margin: 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
+            .header { background: #ea580c; padding: 20px 20px; text-align: center; }
+            .logo-wrap { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px; }
+            .logo-wrap img { display: block; width: 40px; height: 40px; border-radius: 8px; object-fit: cover; border: 2px solid rgba(255,255,255,0.6); }
+            .logo-text { font-size: 1.1rem; font-weight: 700; color: #fff7ed; letter-spacing: 0.08em; text-transform: uppercase; }
+            .header h1 { margin: 4px 0 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
             .content { padding: 28px 24px; background: #ffffff; color: #374151; }
             .content p { margin: 0 0 1rem; font-size: 15px; }
             .btn-wrap { text-align: center; margin: 24px 0; }
@@ -79,6 +82,10 @@ export const sendClientDashboardEmail = async (
           <div class="container">
             <div class="card">
               <div class="header">
+                <div class="logo-wrap">
+                  <img src="${FRONTEND_URL}/logo.jpeg" alt="KANRI logo" />
+                  <span class="logo-text">KANRI</span>
+                </div>
                 <h1>Your Project is Ready!</h1>
               </div>
               <div class="content">
@@ -267,8 +274,11 @@ export const sendCollaboratorProjectAssignedEmail = async (
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background: #f3f4f6; }
             .container { max-width: 560px; margin: 0 auto; padding: 24px; }
             .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-            .header { background: #16a34a; padding: 24px 20px; text-align: center; }
-            .header h1 { margin: 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
+            .header { background: #ea580c; padding: 20px 20px; text-align: center; }
+            .logo-wrap { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px; }
+            .logo-wrap img { display: block; width: 40px; height: 40px; border-radius: 8px; object-fit: cover; border: 2px solid rgba(255,255,255,0.6); }
+            .logo-text { font-size: 1.1rem; font-weight: 700; color: #fff7ed; letter-spacing: 0.08em; text-transform: uppercase; }
+            .header h1 { margin: 4px 0 0; font-size: 1.5rem; font-weight: 700; color: #ffffff; }
             .content { padding: 28px 24px; }
             .content p { margin: 0 0 1rem; font-size: 15px; }
             .btn-wrap { text-align: center; margin: 24px 0 8px; }
@@ -280,6 +290,10 @@ export const sendCollaboratorProjectAssignedEmail = async (
           <div class="container">
             <div class="card">
               <div class="header">
+                <div class="logo-wrap">
+                  <img src="${FRONTEND_URL}/logo.jpeg" alt="KANRI logo" />
+                  <span class="logo-text">KANRI</span>
+                </div>
                 <h1>New Project Assigned</h1>
               </div>
               <div class="content">
