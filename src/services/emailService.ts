@@ -4,8 +4,8 @@ import nodemailer from 'nodemailer'
 const GMAIL_USER = 'aryanarshadlex5413@gmail.com'
 const GMAIL_APP_PASSWORD = 'gpuacmshkixfsadu'
 
-// Frontend URL for links in emails
-const FRONTEND_URL = 'http://localhost:5173'
+// Deployed frontend URL for links in emails
+const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
 
 const createTransporter = () => {
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
@@ -373,7 +373,7 @@ export const sendAdminInvoiceUploadedEmail = async (
 ) => {
   if (!adminEmails.length) return { success: false, error: 'No admin emails' }
 
-  const FRONTEND_URL = 'http://localhost:5173'
+  const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
   const adminProjectsUrl = `${FRONTEND_URL}/admin/projects`
   const projectDetailUrl = options.projectId ? `${FRONTEND_URL}/admin/projects/${options.projectId}` : adminProjectsUrl
 

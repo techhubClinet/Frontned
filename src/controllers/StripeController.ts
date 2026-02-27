@@ -4,8 +4,8 @@ import { Project } from '../models/Project'
 import { getStripe, getStripeWebhookSecret } from '../config/stripe'
 import { ApiResponse } from '../views/response'
 
-// Local frontend for testing – Stripe redirects here after payment success/cancel
-const FRONTEND_URL = 'http://localhost:5173'
+// Deployed frontend URL – Stripe redirects here after payment success/cancel
+const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
 
 /**
  * POST /api/stripe/create-checkout-session
