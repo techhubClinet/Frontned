@@ -1,11 +1,11 @@
 import nodemailer from 'nodemailer'
 
-// Configure email transporter (hardcoded Gmail credentials)
+// Hardcoded Gmail credentials
 const GMAIL_USER = 'aryanarshadlex5413@gmail.com'
-const GMAIL_APP_PASSWORD = 'gpua cmsh kixf sadu'.replace(/\s/g, '') // strip spaces for SMTP
+const GMAIL_APP_PASSWORD = 'gpuacmshkixfsadu'
 
-// Always use the deployed frontend URL in emails (no localhost links, no env)
-const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
+// Frontend URL for links in emails
+const FRONTEND_URL = 'http://localhost:5173'
 
 const createTransporter = () => {
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
@@ -153,7 +153,6 @@ export const sendCollaboratorWelcomeEmail = async (
   console.log('🔐 Email:', collaboratorEmail)
   console.log('🔗 Login URL:', loginUrl)
   console.log('='.repeat(80) + '\n')
-
   const safeName = collaboratorName || 'there'
 
   const mailOptions = {
@@ -374,7 +373,7 @@ export const sendAdminInvoiceUploadedEmail = async (
 ) => {
   if (!adminEmails.length) return { success: false, error: 'No admin emails' }
 
-  const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
+  const FRONTEND_URL = 'http://localhost:5173'
   const adminProjectsUrl = `${FRONTEND_URL}/admin/projects`
   const projectDetailUrl = options.projectId ? `${FRONTEND_URL}/admin/projects/${options.projectId}` : adminProjectsUrl
 
@@ -382,7 +381,6 @@ export const sendAdminInvoiceUploadedEmail = async (
   const subject = isMonthly
     ? `Monthly invoice uploaded for ${options.month || 'N/A'} (${options.projectsCount || 0} project(s))`
     : `Invoice uploaded: ${options.projectName || 'Project'}`
-
   const bodyHtml = isMonthly
     ? `
       <p>A collaborator${options.collaboratorName ? ` (${options.collaboratorName})` : ''} has uploaded a <strong>monthly invoice</strong> for <strong>${options.month || 'N/A'}</strong> covering <strong>${options.projectsCount ?? 0} project(s)</strong>.</p>

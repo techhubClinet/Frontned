@@ -1,7 +1,3 @@
-import dotenv from 'dotenv'
-// Load environment variables FIRST before any other imports
-dotenv.config()
-
 import express from 'express'
 import cors from 'cors'
 import { connectDatabase } from './config/database'
@@ -18,6 +14,9 @@ import uploadRoutes from './routes/uploadRoutes'
 import customQuoteRoutes from './routes/customQuoteRoutes'
 import collaboratorRoutes from './routes/collaboratorRoutes'
 import notificationRoutes from './routes/notificationRoutes'
+import stripeRoutes from './routes/stripeRoutes'
+import holdedRoutes from './routes/holdedRoutes'
+import { handleWebhook } from './controllers/StripeController'
 
 const app = express()
 const PORT = 3001
@@ -29,6 +28,23 @@ app.use(cors({
   origin: '*',
   credentials: false,
 }))
+
+// Stripe webhook must use raw body for signature verification — mount before express.json()
+app.use(
+  '/api/stripe/webhook',
+  express.raw({ type: 'application/json' }),
+  async (req, res, next) => {
+    try {
+      await connectDatabase()
+      next()
+    } catch (err) {
+      console.error('DB connection failed before webhook:', err)
+      res.status(503).json({ success: false, message: 'Service temporarily unavailable.' })
+    }
+  },
+  handleWebhook
+)
+
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
@@ -75,6 +91,8 @@ app.use('/api/upload', uploadRoutes)
 app.use('/api/custom-quotes', customQuoteRoutes)
 app.use('/api/collaborators', collaboratorRoutes)
 app.use('/api/notifications', notificationRoutes)
+app.use('/api/stripe', stripeRoutes)
+app.use('/api/holded', holdedRoutes)
 
 // Error handling
 app.use(errorHandler)

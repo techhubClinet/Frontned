@@ -209,12 +209,17 @@ export class PaymentController {
         stripe_payment_id: session.id,
       }
 
+      // Store paid amount from Stripe (amount_total is in cents)
+      if (session.amount_total != null) {
+        updateData.custom_quote_amount = session.amount_total / 100
+      }
+
       // Update client email if we got it from Stripe and project doesn't have one
       if (customerEmail && !project.client_email) {
         updateData.client_email = customerEmail
       }
 
-      // Update service selection if in metadata
+      // Update service selection if in metadata (old checkout flow)
       if (session.metadata?.serviceId) {
         updateData.selected_service = session.metadata.serviceId
       } else if (session.metadata?.customAmount) {

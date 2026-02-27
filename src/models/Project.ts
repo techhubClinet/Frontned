@@ -24,12 +24,15 @@ export interface IProject extends Document {
   collaborator_transfer_id?: string // Stripe transfer id for collaborator payout
   invoice_url?: string // Invoice document URL (uploaded by collaborator)
   invoice_public_id?: string // Cloudinary public_id for the invoice (for API access)
-  invoice_status?: 'pending' | 'approved' | 'rejected' // Invoice approval status
+  invoice_status?: 'pending' | 'approved' | 'rejected' | 'payment_completed' // Invoice approval status
+  invoice_visible_to_client?: boolean // Set true after payment so client panel shows invoice
   invoice_uploaded_at?: Date // When invoice was uploaded
   invoice_approved_at?: Date // When invoice was approved by admin
   invoice_type?: 'per-project' | 'monthly' // Type of invoice (per-project or monthly combined)
   monthly_invoice_id?: string // For monthly invoices: unique ID to group projects in the same monthly invoice
   monthly_invoice_month?: string // Format: "YYYY-MM" (e.g., "2024-01")
+  holded_document_id?: string // Holded official invoice document ID (for syncing with Holded)
+  holded_invoice_status?: string // Raw status from Holded (e.g. draft, approved, cancelled)
   revisions_used?: number // Number of revisions claimed by client
   max_revisions?: number // Maximum number of revisions allowed (default 3)
   completed_at?: Date // When the project status was changed to 'completed'
@@ -82,12 +85,15 @@ const ProjectSchema = new Schema<IProject>(
     collaborator_transfer_id: { type: String },
     invoice_url: { type: String },
     invoice_public_id: { type: String },
-    invoice_status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    invoice_status: { type: String, enum: ['pending', 'approved', 'rejected', 'payment_completed'], default: 'pending' },
+    invoice_visible_to_client: { type: Boolean },
     invoice_uploaded_at: { type: Date },
     invoice_approved_at: { type: Date },
     invoice_type: { type: String, enum: ['per-project', 'monthly'] },
     monthly_invoice_id: { type: String }, // Groups projects in the same monthly invoice
     monthly_invoice_month: { type: String }, // Format: "YYYY-MM"
+    holded_document_id: { type: String },
+    holded_invoice_status: { type: String },
     revisions_used: { type: Number, default: 0 },
     max_revisions: { type: Number, default: 3 },
     completed_at: { type: Date }, // Track when project was completed
