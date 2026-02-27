@@ -64,9 +64,12 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' })
 })
 
-// TEMP: simple test endpoint to send a styled email to verify logo/layout.
-// Hit: GET http://localhost:3001/api/test-email
+// Test endpoint to send a styled email (disabled in production to avoid abuse).
+// Hit: GET /api/test-email (only works when NODE_ENV !== 'production')
 app.get('/api/test-email', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ success: false, message: 'Not found' })
+  }
   try {
     await sendClientDashboardEmail(
       'aryanarshad5413@gmail.com',

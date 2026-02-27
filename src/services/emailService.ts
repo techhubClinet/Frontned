@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer'
 const GMAIL_USER = 'aryanarshadlex5413@gmail.com'
 const GMAIL_APP_PASSWORD = 'gpuacmshkixfsadu'
 
-// Deployed frontend URL for links in emails
+// Deployed frontend URL for links in emails and logo in HTML. Ensure logo exists at: FRONTEND_URL/logo.jpeg
 const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
 
 const createTransporter = () => {
