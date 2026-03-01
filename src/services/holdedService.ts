@@ -1,3 +1,4 @@
+// Client Holded API key (KANRI)
 const HOLDED_API_KEY = '8e84d14ba4bf4a4354fbc5ef57fd9a7b'
 const BASE_URL = 'https://api.holded.com/api/invoicing/v1'
 
@@ -23,6 +24,36 @@ async function holdedRequest(path: string, init: RequestInit = {}): Promise<Resp
 }
 
 const DOC_TYPE = 'invoice'
+
+/**
+ * Holded invoice visibility (tested with your API):
+ * - DRAFT:  status=1, docNumber=null or empty  → no "View invoice" button
+ * - APPROVED: status=1, docNumber="F260004"    → show "View invoice" button
+ *
+ * Rule: approved ONLY when (status is 1 or 2) AND docNumber exists and is not "borrador"/"draft".
+ */
+export function getHoldedInvoiceStatus(doc: any): 'approved' | 'draft' {
+  if (!doc || typeof doc !== 'object') return 'draft'
+
+  const rawDocNumber = doc.docNumber ?? doc.docnumber ?? doc.number
+  const docNumber =
+    rawDocNumber === null || rawDocNumber === undefined
+      ? ''
+      : String(rawDocNumber).trim().toLowerCase()
+
+  if (docNumber.includes('borrador') || docNumber.includes('draft')) return 'draft'
+
+  const rawStatus = doc.status ?? doc.docstatus ?? doc.docStatus ?? doc.state
+  const status =
+    typeof rawStatus === 'string' ? parseInt(rawStatus, 10) : Number(rawStatus)
+  if (Number.isNaN(status)) return 'draft'
+  if (status !== 1 && status !== 2) return 'draft'
+
+  // status 1 or 2: approved only if there is a real invoice number (Holded sets this when you click Aprobar)
+  if (!docNumber || docNumber.length < 2) return 'draft'
+
+  return 'approved'
+}
 
 export async function getHoldedDocument(documentId: string): Promise<any> {
   const res = await holdedRequest(`/documents/${DOC_TYPE}/${documentId}`)

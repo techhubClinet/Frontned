@@ -4,7 +4,7 @@ import { Project } from '../models/Project'
 import { getStripe, getStripeWebhookSecret } from '../config/stripe'
 import { ApiResponse } from '../views/response'
 
-// Deployed frontend URL – Stripe redirects here after payment success/cancel
+// Deployed frontend – Stripe success/cancel redirects
 const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
 
 /**

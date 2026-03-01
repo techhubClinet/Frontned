@@ -1,7 +1,7 @@
 import { Request, Response } from 'express'
 import { Project } from '../models/Project'
 import { ApiResponse } from '../views/response'
-import { getHoldedDocument, getHoldedDocumentPdf } from '../services/holdedService'
+import { getHoldedDocument, getHoldedDocumentPdf, getHoldedInvoiceStatus } from '../services/holdedService'
 import { AuthRequest } from '../middleware/auth'
 
 export class HoldedController {
@@ -62,17 +62,16 @@ export class HoldedController {
         return ApiResponse.error(res, 'Invoice available only after payment is completed', 403)
       }
 
-      // Refresh status from Holded (API: 0 = draft?, 1 = approved, 2 = approved in some docs)
+      // Refresh status from Holded – only show/serve when approved
       const doc = await getHoldedDocument(project.holded_document_id)
-      const status = doc.status
-      console.log('[Holded] Document status for', project.holded_document_id, ':', status)
+      const statusFromHolded = getHoldedInvoiceStatus(doc)
+      console.log('[Holded] Document', project.holded_document_id, 'raw status:', doc?.status, '→', statusFromHolded)
 
-      const isApproved = status === 1 || status === 2
-      project.holded_invoice_status = isApproved ? 'approved' : status === 0 ? 'draft' : String(status)
+      project.holded_invoice_status = statusFromHolded
       await project.save().catch(() => {})
 
-      if (!isApproved) {
-        return ApiResponse.error(res, `Invoice not approved yet in Holded (status: ${status}). Approve it in Holded first.`, 403)
+      if (statusFromHolded !== 'approved') {
+        return ApiResponse.error(res, `Invoice not approved yet in Holded (status: ${doc?.status}). Approve it in Holded first.`, 403)
       }
 
       const pdfBuffer = await getHoldedDocumentPdf(project.holded_document_id)

@@ -3,6 +3,7 @@ import { Project } from '../models/Project'
 import { ApiResponse } from '../views/response'
 import { AuthRequest } from '../middleware/auth'
 import { sendCollaboratorProjectAssignedEmail } from '../services/emailService'
+import { getHoldedDocument, getHoldedInvoiceStatus } from '../services/holdedService'
 
 export class ProjectController {
   // Get project by ID (for client link validation)
@@ -96,6 +97,20 @@ export class ProjectController {
       // Get briefing
       const { ProjectBriefing } = await import('../models/Briefing')
       const briefing = await ProjectBriefing.findOne({ project_id: projectId })
+
+      // Refresh Holded invoice status so client sees "View invoice" only when approved
+      if (project.holded_document_id && project.payment_status === 'paid') {
+        try {
+          const doc = await getHoldedDocument(project.holded_document_id)
+          project.holded_invoice_status = getHoldedInvoiceStatus(doc)
+          await project.save().catch(() => {})
+          console.log('[Holded] Project details refresh:', project.holded_document_id, 'status from API:', doc?.status, 'docNumber:', doc?.docNumber, '→', project.holded_invoice_status)
+        } catch (e) {
+          console.warn('[Holded] Failed to refresh invoice status:', (e as Error)?.message)
+          project.holded_invoice_status = 'draft'
+          await project.save().catch(() => {})
+        }
+      }
 
       // Get briefing images
       const { BriefingImage } = await import('../models/Briefing')
