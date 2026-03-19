@@ -231,7 +231,7 @@ export class CollaboratorController {
         await collaborator.save()
       }
 
-      const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
+      const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://www.kanridesign.com').replace(/\/$/, '')
       const refreshUrl = `${FRONTEND_URL}/collaborator/stripe/refresh`
       const returnUrl = `${FRONTEND_URL}/collaborator/stripe/return`
 

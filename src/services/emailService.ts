@@ -7,7 +7,7 @@ const EMAIL_FROM_CLIENT = process.env.EMAIL_FROM_CLIENT || SMTP_USER || 'clients
 const EMAIL_FROM_COLLABORATOR = process.env.EMAIL_FROM_COLLABORATOR || SMTP_USER || 'collaborators@kanridesign.com'
 const EMAIL_FROM_ADMIN = process.env.EMAIL_FROM_ADMIN || SMTP_USER || 'admin@kanridesign.com'
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://frontned-mblv.vercel.app'
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://www.kanridesign.com').replace(/\/$/, '')
 
 const createTransporter = () => {
   if (!SMTP_USER || !SMTP_PASSWORD) {
@@ -390,7 +390,6 @@ export const sendAdminInvoiceUploadedEmail = async (
 ) => {
   if (!adminEmails.length) return { success: false, error: 'No admin emails' }
 
-  const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
   const adminProjectsUrl = `${FRONTEND_URL}/admin/projects`
   const projectDetailUrl = options.projectId ? `${FRONTEND_URL}/admin/projects/${options.projectId}` : adminProjectsUrl
 

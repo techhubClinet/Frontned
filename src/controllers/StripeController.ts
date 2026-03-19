@@ -5,8 +5,10 @@ import { getStripe, getStripeWebhookSecret } from '../config/stripe'
 import { ApiResponse } from '../views/response'
 import { sendClientDashboardEmail } from '../services/emailService'
 
-// Frontend URL for Stripe redirects (use .env for localhost testing, e.g. FRONTEND_URL=http://localhost:5173)
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://frontned-mblv.vercel.app'
+// Frontend URL for Stripe redirects.
+// Note: we trim trailing slashes so URL concatenation does not create `//`.
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://www.kanridesign.com').replace(/\/$/, '')
+const FRONTEND_URL_NO_WWW = (process.env.FRONTEND_URL_NO_WWW || 'https://kanridesign.com').replace(/\/$/, '')
 
 /**
  * POST /api/stripe/create-checkout-session
@@ -40,7 +42,11 @@ export async function createCheckoutSession(req: Request, res: Response): Promis
     let baseUrl = FRONTEND_URL
     if (returnOrigin && typeof returnOrigin === 'string') {
       const origin = returnOrigin.replace(/\/$/, '')
-      if (/^https?:\/\/localhost(:\d+)?$/i.test(origin) || origin === FRONTEND_URL.replace(/\/$/, '')) {
+      if (
+        /^https?:\/\/localhost(:\d+)?$/i.test(origin) ||
+        origin === FRONTEND_URL ||
+        origin === FRONTEND_URL_NO_WWW
+      ) {
         baseUrl = origin
       }
     }

@@ -42,7 +42,7 @@ export class PaymentController {
 
       // Create Stripe checkout session
       const stripe = getStripe()
-      const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
+      const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://www.kanridesign.com').replace(/\/$/, '')
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [
