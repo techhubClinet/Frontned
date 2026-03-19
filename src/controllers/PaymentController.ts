@@ -237,6 +237,7 @@ export class PaymentController {
 
       // Send email to client with dashboard link
       if (emailToUse) {
+        console.log('[Payment] Sending confirmation email to:', emailToUse)
         const { sendClientDashboardEmail } = await import('../services/emailService')
         const emailResult = await sendClientDashboardEmail(
           emailToUse,
@@ -244,6 +245,11 @@ export class PaymentController {
           updatedProject._id.toString(),
           updatedProject.name
         )
+        if (emailResult.success) {
+          console.log('[Payment] ✅ Confirmation email sent to', emailToUse)
+        } else {
+          console.warn('[Payment] ⚠️ Confirmation email failed:', emailResult.error || 'unknown')
+        }
 
         return ApiResponse.success(res, {
           project: updatedProject,

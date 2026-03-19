@@ -1,18 +1,21 @@
 import nodemailer from 'nodemailer'
 
-// Hardcoded Gmail credentials
-const GMAIL_USER = 'aryanarshadlex5413@gmail.com'
-const GMAIL_APP_PASSWORD = 'gpuacmshkixfsadu'
+// Email configuration from environment (Kanri panel addresses)
+const SMTP_USER = process.env.SMTP_USER || process.env.GMAIL_USER
+const SMTP_PASSWORD = process.env.SMTP_PASSWORD || process.env.GMAIL_APP_PASSWORD
+const EMAIL_FROM_CLIENT = process.env.EMAIL_FROM_CLIENT || SMTP_USER || 'clients@kanridesign.com'
+const EMAIL_FROM_COLLABORATOR = process.env.EMAIL_FROM_COLLABORATOR || SMTP_USER || 'collaborators@kanridesign.com'
+const EMAIL_FROM_ADMIN = process.env.EMAIL_FROM_ADMIN || SMTP_USER || 'admin@kanridesign.com'
 
-// Deployed frontend URL for links in emails and logo
-const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://frontned-mblv.vercel.app'
 
 const createTransporter = () => {
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-    console.warn('⚠️  Gmail credentials not configured. Emails will be logged to console only.')
+  if (!SMTP_USER || !SMTP_PASSWORD) {
+    console.warn('⚠️  SMTP credentials not configured (SMTP_USER / SMTP_PASSWORD or GMAIL_*). Emails will be logged to console only.')
     return {
       sendMail: async (options: any) => {
         console.log('\n📧 EMAIL WOULD BE SENT:')
+        console.log('From:', options.from)
         console.log('To:', options.to)
         console.log('Subject:', options.subject)
         console.log('---\n')
@@ -22,13 +25,12 @@ const createTransporter = () => {
   }
 
   return nodemailer.createTransport({
-    service: 'gmail',
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: process.env.SMTP_SECURE === 'true',
     auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD,
+      user: SMTP_USER,
+      pass: SMTP_PASSWORD,
     },
   })
 }
@@ -39,8 +41,23 @@ export const sendClientDashboardEmail = async (
   projectId: string,
   projectName: string
 ) => {
-  const transporter = createTransporter()
   const dashboardUrl = `${FRONTEND_URL}/client/${projectId}/dashboard`
+
+  // When SMTP is not configured (e.g. localhost), log and return success: false so UI shows "Email not sent"
+  if (!SMTP_USER || !SMTP_PASSWORD) {
+    console.log('\n' + '='.repeat(80))
+    console.log('📧 CLIENT DASHBOARD LINK (SMTP not configured – no email sent to:', clientEmail, ')')
+    console.log('='.repeat(80))
+    console.log('📋 Project:', projectName)
+    console.log('👤 Client:', clientName)
+    console.log('🔗 Dashboard URL:', dashboardUrl)
+    console.log('🔗 Direct Project Link:', `${FRONTEND_URL}/client/${projectId}`)
+    console.log('💡 Set SMTP_USER and SMTP_PASSWORD in backend/.env to send real emails on localhost.')
+    console.log('='.repeat(80) + '\n')
+    return { success: false, error: 'SMTP not configured' }
+  }
+
+  const transporter = createTransporter()
 
   // Log the dashboard link to console for easy access during development
   console.log('\n' + '='.repeat(80))
@@ -53,7 +70,7 @@ export const sendClientDashboardEmail = async (
   console.log('='.repeat(80) + '\n')
 
   const mailOptions = {
-    from: `"Client Project Portal" <${GMAIL_USER}>`,
+    from: `"Kanri Design" <${EMAIL_FROM_CLIENT}>`,
     to: clientEmail,
     subject: `Your Project Dashboard: ${projectName}`,
     html: `
@@ -130,9 +147,9 @@ export const sendClientDashboardEmail = async (
   } catch (error: any) {
     console.error('❌ Email send error:', error.message)
     if (error.code === 'EAUTH') {
-      console.error('   Authentication failed. Please check your Gmail app password.')
+      console.error('   Gmail: Use an App Password (not your normal password). See https://support.google.com/accounts/answer/185833')
     } else if (error.code === 'ECONNECTION') {
-      console.error('   Connection failed. Please check your internet connection.')
+      console.error('   Connection failed. Check internet or firewall.')
     }
     return { success: false, error: error.message }
   }
@@ -156,7 +173,7 @@ export const sendCollaboratorWelcomeEmail = async (
   const safeName = collaboratorName || 'there'
 
   const mailOptions = {
-    from: `"Client Project Portal" <${GMAIL_USER}>`,
+    from: `"Kanri Design" <${EMAIL_FROM_COLLABORATOR}>`,
     to: collaboratorEmail,
     subject: 'You have been added as a collaborator',
     html: `
@@ -263,7 +280,7 @@ export const sendCollaboratorProjectAssignedEmail = async (
   console.log('='.repeat(80) + '\n')
 
   const mailOptions = {
-    from: `"Client Project Portal" <${GMAIL_USER}>`,
+    from: `"Kanri Design" <${EMAIL_FROM_COLLABORATOR}>`,
     to: collaboratorEmail,
     subject: `New project assigned: ${projectName}`,
     html: `
@@ -395,7 +412,7 @@ export const sendAdminInvoiceUploadedEmail = async (
 
   const transporter = createTransporter()
   const mailOptions = {
-    from: `"Client Project Portal" <${GMAIL_USER}>`,
+    from: `"Kanri Design" <${EMAIL_FROM_ADMIN}>`,
     to: adminEmails.join(', '),
     subject: `[Admin] ${subject}`,
     html: `

@@ -2,12 +2,14 @@ import Stripe from 'stripe'
 
 let stripeInstance: Stripe | null = null
 
-const STRIPE_SECRET_KEY = 'sk_test_51Rj1dnBOoulucdCvbGDz4brJYHztkuL80jGSKcnQNT46g9P58pbxY36Lg3yWyMDb6Gwgv5Rr3NDfjvB2HyaDlJP7006wnXEtp1'
-const STRIPE_WEBHOOK_SECRET = 'whsec_your_webhook_secret_here'
-
 export const getStripe = (): Stripe => {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY
+  if (!stripeSecretKey) {
+    throw new Error('STRIPE_SECRET_KEY is not configured')
+  }
+
   if (!stripeInstance) {
-    stripeInstance = new Stripe(STRIPE_SECRET_KEY, {
+    stripeInstance = new Stripe(stripeSecretKey, {
       apiVersion: '2025-12-15.clover',
     })
   }
@@ -15,5 +17,9 @@ export const getStripe = (): Stripe => {
 }
 
 export const getStripeWebhookSecret = (): string => {
-  return STRIPE_WEBHOOK_SECRET
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+  if (!webhookSecret) {
+    throw new Error('STRIPE_WEBHOOK_SECRET is not configured')
+  }
+  return webhookSecret
 }

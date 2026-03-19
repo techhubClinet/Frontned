@@ -3,22 +3,27 @@ import Stripe from 'stripe'
 import { Project } from '../models/Project'
 import { getStripe, getStripeWebhookSecret } from '../config/stripe'
 import { ApiResponse } from '../views/response'
+import { sendClientDashboardEmail } from '../services/emailService'
 
-// Deployed frontend – Stripe success/cancel redirects
-const FRONTEND_URL = 'https://frontned-mblv.vercel.app'
+// Frontend URL for Stripe redirects (use .env for localhost testing, e.g. FRONTEND_URL=http://localhost:5173)
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://frontned-mblv.vercel.app'
 
 /**
  * POST /api/stripe/create-checkout-session
- * Body: { projectId: string, amount: number (in dollars), description?: string }
- * Creates a Stripe Checkout Session and stores session.id on the Project.
+ * Body: { projectId, amount, description?, currency?, returnOrigin? }
+ * returnOrigin: optional frontend origin (e.g. http://localhost:5173) so redirect after payment goes back to that host. If omitted, uses FRONTEND_URL env.
  */
 export async function createCheckoutSession(req: Request, res: Response): Promise<void> {
   try {
-    const { projectId, amount, description } = req.body as {
+    const { projectId, amount, description, currency: currencyParam, returnOrigin } = req.body as {
       projectId: string
       amount: number
       description?: string
+      currency?: 'usd' | 'eur'
+      returnOrigin?: string
     }
+
+    const currency = (currencyParam === 'eur' ? 'eur' : 'usd') as 'usd' | 'eur'
 
     if (!projectId || amount == null || amount <= 0) {
       ApiResponse.error(res, 'projectId and positive amount are required', 400)
@@ -31,26 +36,37 @@ export async function createCheckoutSession(req: Request, res: Response): Promis
       return
     }
 
+    // Use frontend origin when provided (e.g. localhost) so redirect stays on same host; otherwise use env
+    let baseUrl = FRONTEND_URL
+    if (returnOrigin && typeof returnOrigin === 'string') {
+      const origin = returnOrigin.replace(/\/$/, '')
+      if (/^https?:\/\/localhost(:\d+)?$/i.test(origin) || origin === FRONTEND_URL.replace(/\/$/, '')) {
+        baseUrl = origin
+      }
+    }
+
     const stripe = getStripe()
+    const unitAmountCents = Math.round(Number(amount) * 100)
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
         {
           price_data: {
-            currency: 'usd',
+            currency,
             product_data: {
               name: description || project.name,
               description: `Project: ${project.name}`,
             },
-            unit_amount: Math.round(Number(amount) * 100),
+            unit_amount: unitAmountCents,
           },
           quantity: 1,
         },
       ],
       mode: 'payment',
       customer_email: project.client_email || undefined,
-      success_url: `${FRONTEND_URL}/client/${projectId}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${FRONTEND_URL}/client/${projectId}/payment?payment=cancelled`,
+      success_url: `${baseUrl}/client/${projectId}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/client/${projectId}/payment?payment=cancelled`,
       metadata: {
         projectId: projectId,
       },
@@ -59,6 +75,7 @@ export async function createCheckoutSession(req: Request, res: Response): Promis
     await Project.findByIdAndUpdate(projectId, {
       stripe_payment_id: session.id,
       custom_quote_amount: Number(amount),
+      currency,
     })
 
     ApiResponse.success(
@@ -131,12 +148,16 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
       return
     }
 
-    // Client pays first; project then goes to admin → collaborator assigned → invoice uploaded later.
-    // Set invoice_visible_to_client now so when an invoice is added later, the client can see it.
+    const amountTotal = session.amount_total ?? 0
+    const currency = (session.currency as 'usd' | 'eur') || 'usd'
+    const amountInMainUnit = amountTotal / 100
+
     const update: Record<string, any> = {
       payment_status: 'paid',
       stripe_payment_id: session.id,
       invoice_visible_to_client: true,
+      currency,
+      custom_quote_amount: amountInMainUnit,
     }
     // If an invoice already exists (e.g. edge case), mark it as payment_completed
     const hasInvoice = !!(project.invoice_url || project.invoice_status)
@@ -146,6 +167,25 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
 
     await Project.findByIdAndUpdate(projectId, update)
     res.json({ received: true })
+
+    // Send confirmation email to client (works in production via webhook and locally if using Stripe CLI forward)
+    const clientEmail =
+      (session.customer_email as string) ||
+      (session.customer_details?.email as string) ||
+      project.client_email
+    if (clientEmail) {
+      sendClientDashboardEmail(
+        clientEmail,
+        project.client_name || 'Client',
+        projectId,
+        project.name
+      ).then((r) => {
+        if (r.success) console.log('[Stripe] Confirmation email sent to', clientEmail)
+        else console.warn('[Stripe] Confirmation email failed:', r.error)
+      }).catch((err) => console.error('[Stripe] Confirmation email error:', err?.message))
+    } else {
+      console.warn('[Stripe] No client email for confirmation (projectId:', projectId, ')')
+    }
   } catch (err: any) {
     console.error('[Stripe] Webhook handler error:', err?.message)
     res.status(500).json({ success: false, message: 'Webhook handler error' })

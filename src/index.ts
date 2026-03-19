@@ -1,8 +1,10 @@
+import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import { connectDatabase } from './config/database'
 import { errorHandler } from './middleware/errorHandler'
 import { sendClientDashboardEmail } from './services/emailService'
+import { deliveryRedirect } from './controllers/deliveryController'
 
 // Routes
 import authRoutes from './routes/authRoutes'
@@ -64,20 +66,38 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' })
 })
 
+// Public delivery redirect (no auth) – must be before /api so it's at app root
+app.get('/delivery/:token', async (req, res, next) => {
+  try {
+    await connectDatabase()
+    next()
+  } catch (err) {
+    console.error('DB connection failed before delivery redirect:', err)
+    res.status(503).send('Service unavailable')
+  }
+}, deliveryRedirect)
+
 // Test endpoint to send a styled email (disabled in production to avoid abuse).
-// Hit: GET /api/test-email (only works when NODE_ENV !== 'production')
+// GET /api/test-email?to=your@email.com (optional: without ?to= sends to a default address)
 app.get('/api/test-email', async (req, res) => {
   if (process.env.NODE_ENV === 'production') {
     return res.status(404).json({ success: false, message: 'Not found' })
   }
+  const to = (req.query.to as string) || 'clients@kanridesign.com'
   try {
-    await sendClientDashboardEmail(
-      'aryanarshad5413@gmail.com',
+    const result = await sendClientDashboardEmail(
+      to,
       'Test Client',
       'TEST_PROJECT_ID',
-      'Test Project for Styling'
+      'Test Project for Email'
     )
-    res.json({ success: true, message: 'Test email sent to aryanarshad5413@gmail.com' })
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: result.error || 'Email was not sent. Check backend terminal for details.',
+      })
+    }
+    res.json({ success: true, message: `Test email sent to ${to}. Check inbox and backend logs.` })
   } catch (err: any) {
     console.error('Failed to send test email:', err?.message || err)
     res.status(500).json({ success: false, message: err?.message || 'Failed to send test email' })

@@ -1,7 +1,7 @@
 import mongoose from 'mongoose'
 
-// Hardcoded MongoDB connection string
 const MONGODB_URI =
+  process.env.MONGODB_URI ||
   'mongodb+srv://ali:ali@cluster0.o8bu9nt.mongodb.net/client-project-portal'
 
 // Increase buffer timeout so cold-start connections don't fail (default 10s -> 30s)

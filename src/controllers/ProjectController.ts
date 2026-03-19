@@ -4,6 +4,24 @@ import { ApiResponse } from '../views/response'
 import { AuthRequest } from '../middleware/auth'
 import { sendCollaboratorProjectAssignedEmail } from '../services/emailService'
 import { getHoldedDocument, getHoldedInvoiceStatus } from '../services/holdedService'
+import { generateDeliveryToken } from './deliveryController'
+
+// Base URL for masked delivery links (used in status_notes and in API response for client)
+const BACKEND_PORT = process.env.PORT || '3001'
+const DELIVERY_BASE_URL =
+  process.env.BACKEND_PUBLIC_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
+  (process.env.NODE_ENV !== 'production' ? `http://localhost:${BACKEND_PORT}` : '')
+
+/** Strip private deliveryUrl from project for client; add deliveryMaskedLink when deliveryToken exists. */
+function sanitizeProjectForClient(project: any): any {
+  const p = project.toObject ? project.toObject() : { ...project }
+  delete p.deliveryUrl
+  if (p.deliveryToken && DELIVERY_BASE_URL) {
+    p.deliveryMaskedLink = `${DELIVERY_BASE_URL.replace(/\/$/, '')}/delivery/${p.deliveryToken}`
+  }
+  return p
+}
 
 export class ProjectController {
   // Get project by ID (for client link validation)
@@ -26,6 +44,11 @@ export class ProjectController {
         if (!isOwner && !isUnclaimedOrUnpaid) {
           return ApiResponse.error(res, 'You do not have access to this project', 403)
         }
+      }
+
+      // Client: do not expose deliveryUrl; expose deliveryMaskedLink when deliveryToken exists
+      if (authReq.user?.role === 'client') {
+        return ApiResponse.success(res, sanitizeProjectForClient(project), 'Project retrieved successfully')
       }
 
       return ApiResponse.success(res, project, 'Project retrieved successfully')
@@ -125,8 +148,10 @@ export class ProjectController {
         order: img.order,
       }))
 
+      const projectPayload = authReq.user?.role === 'client' ? sanitizeProjectForClient(project) : project
+
       return ApiResponse.success(res, {
-        project,
+        project: projectPayload,
         briefing: briefing || null,
         images: formattedImages || [],
       })
@@ -138,7 +163,7 @@ export class ProjectController {
   // Create new project (admin)
   static async createProject(req: Request, res: Response) {
     try {
-      const { name, client_name, client_email, project_type, service, service_price, service_description, amount, deadline, delivery_timeline, max_revisions } = req.body
+      const { name, client_name, client_email, project_type, service, service_price, service_price_eur, service_description, amount, deadline, delivery_timeline, max_revisions, selected_service_id: selectedServiceId } = req.body
 
       if (!name) {
         return ApiResponse.error(res, 'Project name is required', 400)
@@ -153,6 +178,11 @@ export class ProjectController {
         payment_status: 'pending',
       }
 
+      // Link to Service document when admin selected an existing service
+      if (selectedServiceId && project_type === 'simple') {
+        projectData.selected_service = selectedServiceId
+      }
+
       // Handle service selection for simple projects (catalog)
       if (project_type === 'simple' && service && service !== 'Custom Service') {
         projectData.service_name = service
@@ -163,6 +193,10 @@ export class ProjectController {
         if (service_price) {
           const price = parseFloat(service_price.toString().replace('$', '').replace(',', '').trim())
           if (!isNaN(price)) projectData.service_price = price
+        }
+        if (service_price_eur !== undefined && service_price_eur !== null && service_price_eur !== '') {
+          const priceEur = parseFloat(String(service_price_eur).replace('$', '').replace(',', '').replace('€', '').trim())
+          if (!isNaN(priceEur) && priceEur >= 0) projectData.service_price_eur = priceEur
         }
       } else if (project_type === 'custom' || (service === 'Custom Service' && amount)) {
         projectData.project_type = 'custom'
@@ -277,7 +311,8 @@ export class ProjectController {
         .populate('selected_service')
         .sort({ created_at: -1 })
 
-      return ApiResponse.success(res, projects, 'Your projects retrieved successfully')
+      const sanitized = projects.map((p) => sanitizeProjectForClient(p))
+      return ApiResponse.success(res, sanitized, 'Your projects retrieved successfully')
     } catch (error: any) {
       return ApiResponse.error(res, error.message, 500)
     }
@@ -334,7 +369,28 @@ export class ProjectController {
           typeof notes_key === 'string' && notes_key.trim().length > 0
             ? notes_key.trim()
             : status
-        update[`status_notes.${key}`] = notes.trim()
+        let noteToStore = notes.trim()
+
+        // Professional masked delivery link: when status is "review" and notes contain "Delivery link: <url>"
+        const deliveryPrefix = 'Delivery link:'
+        if (status === 'review' && noteToStore.toLowerCase().startsWith(deliveryPrefix.toLowerCase())) {
+          const afterPrefix = noteToStore.slice(deliveryPrefix.length).trim()
+          const urlMatch = afterPrefix.split(/\s/)[0]
+          const isUrl = /^https?:\/\//i.test(urlMatch)
+          if (isUrl && urlMatch) {
+            const rawUrl = urlMatch.trim()
+            let token = project.deliveryToken
+            if (!token) {
+              token = generateDeliveryToken()
+            }
+            update.deliveryUrl = rawUrl
+            update.deliveryToken = token
+            update.isDelivered = true
+            const baseUrl = DELIVERY_BASE_URL
+            noteToStore = baseUrl ? `${deliveryPrefix} ${baseUrl.replace(/\/$/, '')}/delivery/${token}` : `${deliveryPrefix} [Link]`
+          }
+        }
+        update[`status_notes.${key}`] = noteToStore
       }
 
       const updatedProject = await Project.findByIdAndUpdate(projectId, update, { new: true })
@@ -579,7 +635,7 @@ export class ProjectController {
       }
 
       const { projectId } = req.params
-      const { name, service_name, service_price, service_description, delivery_timeline, max_revisions } = req.body
+      const { name, service_name, service_price, service_price_eur, service_description, delivery_timeline, max_revisions } = req.body
 
       const project = await Project.findById(projectId)
       if (!project) {
@@ -599,6 +655,14 @@ export class ProjectController {
           ? service_price
           : parseFloat(String(service_price).replace(/\$/g, '').replace(/,/g, '').trim())
         if (!isNaN(price) && price >= 0) set.service_price = price
+      }
+      if (service_price_eur !== undefined && service_price_eur !== null && service_price_eur !== '') {
+        const priceEur = typeof service_price_eur === 'number'
+          ? service_price_eur
+          : parseFloat(String(service_price_eur).replace(/[€$]/g, '').replace(/,/g, '').trim())
+        if (!isNaN(priceEur) && priceEur >= 0) set.service_price_eur = priceEur
+      } else if (service_price_eur === null || service_price_eur === '') {
+        set.service_price_eur = undefined
       }
       if (typeof max_revisions === 'number' && max_revisions >= 0 && max_revisions <= 99) set.max_revisions = max_revisions
 

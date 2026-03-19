@@ -12,6 +12,7 @@ export interface IProject extends Document {
   selected_service?: mongoose.Types.ObjectId
   service_name?: string // Service name for simple projects (predefined services)
   service_price?: number // Price for simple projects (predefined services)
+  service_price_eur?: number // Price in EUR for simple projects (optional)
   service_description?: string // Catalog description for predefined services
   custom_quote_amount?: number
   custom_quote_request?: mongoose.Types.ObjectId // Link to CustomQuote
@@ -33,6 +34,10 @@ export interface IProject extends Document {
   monthly_invoice_month?: string // Format: "YYYY-MM" (e.g., "2024-01")
   holded_document_id?: string // Holded official invoice document ID (for syncing with Holded)
   holded_invoice_status?: string // Raw status from Holded (e.g. draft, approved, cancelled)
+  currency?: 'usd' | 'eur'
+  deliveryUrl?: string // Original delivery URL (private)
+  deliveryToken?: string // Secure token for masked link
+  isDelivered?: boolean
   revisions_used?: number // Number of revisions claimed by client
   max_revisions?: number // Maximum number of revisions allowed (default 3)
   completed_at?: Date // When the project status was changed to 'completed'
@@ -73,6 +78,7 @@ const ProjectSchema = new Schema<IProject>(
     selected_service: { type: Schema.Types.ObjectId, ref: 'Service' },
     service_name: { type: String },
     service_price: { type: Number },
+    service_price_eur: { type: Number },
     service_description: { type: String },
     custom_quote_amount: { type: Number },
     custom_quote_request: { type: Schema.Types.ObjectId, ref: 'CustomQuote' },
@@ -94,6 +100,10 @@ const ProjectSchema = new Schema<IProject>(
     monthly_invoice_month: { type: String }, // Format: "YYYY-MM"
     holded_document_id: { type: String },
     holded_invoice_status: { type: String },
+    currency: { type: String, enum: ['usd', 'eur'] },
+    deliveryUrl: { type: String },
+    deliveryToken: { type: String },
+    isDelivered: { type: Boolean, default: false },
     revisions_used: { type: Number, default: 0 },
     max_revisions: { type: Number, default: 3 },
     completed_at: { type: Date }, // Track when project was completed

@@ -3,8 +3,10 @@ import mongoose, { Schema, Document } from 'mongoose'
 export interface IService extends Document {
   name: string
   description: string
-  price: number
-  delivery_timeline: string // e.g., "7-14 days", "2-3 weeks"
+  price: number // legacy; treated as priceUSD when priceUSD not set
+  priceUSD?: number
+  priceEUR?: number
+  delivery_timeline: string
   is_active: boolean
   created_at: Date
 }
@@ -14,6 +16,8 @@ const ServiceSchema = new Schema<IService>(
     name: { type: String, required: true },
     description: { type: String },
     price: { type: Number, required: true },
+    priceUSD: { type: Number },
+    priceEUR: { type: Number },
     delivery_timeline: { type: String, default: '30 days' },
     is_active: { type: Boolean, default: true },
   },

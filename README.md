@@ -22,6 +22,8 @@ cp .env.example .env
 - `STRIPE_SECRET_KEY`: Your Stripe secret key
 - `STRIPE_WEBHOOK_SECRET`: Your Stripe webhook signing secret
 - `FRONTEND_URL`: Frontend URL (default: http://localhost:5173)
+- **Email (Kanri panel):** `SMTP_USER`, `SMTP_PASSWORD`, and optionally `EMAIL_FROM_CLIENT`, `EMAIL_FROM_COLLABORATOR`, `EMAIL_FROM_ADMIN` for the “from” address per panel. Default SMTP host is Gmail; set `SMTP_HOST`/`SMTP_PORT` if your provider differs.
+  - **Gmail:** Use an [App Password](https://support.google.com/accounts/answer/185833), not your normal account password (enable 2-Step Verification first, then create an App Password under Security → App passwords).
 
 4. Start MongoDB:
    - Local: Make sure MongoDB is running on your machine
