@@ -4,7 +4,7 @@ import { ApiResponse } from '../views/response'
 import { AuthRequest } from '../middleware/auth'
 import { sendCollaboratorProjectAssignedEmail } from '../services/emailService'
 import { getHoldedDocument, getHoldedInvoiceStatus } from '../services/holdedService'
-import { generateDeliveryToken } from './deliveryController'
+import { generateDeliveryToken, normalizeAndValidateDeliveryUrl } from './deliveryController'
 
 // Base URL for masked delivery links (used in status_notes and in API response for client)
 const BACKEND_PORT = process.env.PORT || '3001'
@@ -376,18 +376,23 @@ export class ProjectController {
         if (status === 'review' && noteToStore.toLowerCase().startsWith(deliveryPrefix.toLowerCase())) {
           const afterPrefix = noteToStore.slice(deliveryPrefix.length).trim()
           const urlMatch = afterPrefix.split(/\s/)[0]
-          const isUrl = /^https?:\/\//i.test(urlMatch)
-          if (isUrl && urlMatch) {
-            const rawUrl = urlMatch.trim()
+          const validUrl = normalizeAndValidateDeliveryUrl(urlMatch)
+          if (validUrl) {
             let token = project.deliveryToken
             if (!token) {
               token = generateDeliveryToken()
             }
-            update.deliveryUrl = rawUrl
+            update.deliveryUrl = validUrl
             update.deliveryToken = token
             update.isDelivered = true
             const baseUrl = DELIVERY_BASE_URL
             noteToStore = baseUrl ? `${deliveryPrefix} ${baseUrl.replace(/\/$/, '')}/delivery/${token}` : `${deliveryPrefix} [Link]`
+          } else if (urlMatch) {
+            return ApiResponse.error(
+              res,
+              'Invalid delivery link. Please use a valid http:// or https:// URL.',
+              400
+            )
           }
         }
         update[`status_notes.${key}`] = noteToStore

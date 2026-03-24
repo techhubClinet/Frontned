@@ -6,6 +6,7 @@ const User_1 = require("../models/User");
 const Project_1 = require("../models/Project");
 const response_1 = require("../views/response");
 const stripe_1 = require("../config/stripe");
+const urls_1 = require("../config/urls");
 const emailService_1 = require("../services/emailService");
 class CollaboratorController {
     // Get all collaborators
@@ -186,7 +187,7 @@ class CollaboratorController {
                 collaborator.stripe_account_id = accountId;
                 await collaborator.save();
             }
-            const FRONTEND_URL = 'https://frontned-mblv.vercel.app';
+            const FRONTEND_URL = (0, urls_1.getFrontendUrl)();
             const refreshUrl = `${FRONTEND_URL}/collaborator/stripe/refresh`;
             const returnUrl = `${FRONTEND_URL}/collaborator/stripe/return`;
             const accountLink = await stripe.accountLinks.create({

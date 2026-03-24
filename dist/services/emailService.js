@@ -5,17 +5,21 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendAdminInvoiceUploadedEmail = exports.sendCollaboratorProjectAssignedEmail = exports.sendCollaboratorWelcomeEmail = exports.sendClientDashboardEmail = void 0;
 const nodemailer_1 = __importDefault(require("nodemailer"));
-// Configure email transporter (hardcoded Gmail credentials)
-const GMAIL_USER = 'aryanarshadlex5413@gmail.com';
-const GMAIL_APP_PASSWORD = 'gpua cmsh kixf sadu'.replace(/\s/g, ''); // strip spaces for SMTP
-// Always use the deployed frontend URL in emails (no localhost links, no env)
-const FRONTEND_URL = 'https://frontned-mblv.vercel.app';
+const urls_1 = require("../config/urls");
+// Email configuration from environment (Kanri panel addresses)
+const SMTP_USER = process.env.SMTP_USER || process.env.GMAIL_USER;
+const SMTP_PASSWORD = process.env.SMTP_PASSWORD || process.env.GMAIL_APP_PASSWORD;
+const EMAIL_FROM_CLIENT = process.env.EMAIL_FROM_CLIENT || SMTP_USER || 'clients@kanridesign.com';
+const EMAIL_FROM_COLLABORATOR = process.env.EMAIL_FROM_COLLABORATOR || SMTP_USER || 'collaborators@kanridesign.com';
+const EMAIL_FROM_ADMIN = process.env.EMAIL_FROM_ADMIN || SMTP_USER || 'admin@kanridesign.com';
+const FRONTEND_URL = (0, urls_1.getFrontendUrl)();
 const createTransporter = () => {
-    if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-        console.warn('⚠️  Gmail credentials not configured. Emails will be logged to console only.');
+    if (!SMTP_USER || !SMTP_PASSWORD) {
+        console.warn('⚠️  SMTP credentials not configured (SMTP_USER / SMTP_PASSWORD or GMAIL_*). Emails will be logged to console only.');
         return {
             sendMail: async (options) => {
                 console.log('\n📧 EMAIL WOULD BE SENT:');
+                console.log('From:', options.from);
                 console.log('To:', options.to);
                 console.log('Subject:', options.subject);
                 console.log('---\n');
@@ -24,19 +28,31 @@ const createTransporter = () => {
         };
     }
     return nodemailer_1.default.createTransport({
-        service: 'gmail',
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.SMTP_PORT || '587', 10),
+        secure: process.env.SMTP_SECURE === 'true',
         auth: {
-            user: GMAIL_USER,
-            pass: GMAIL_APP_PASSWORD,
+            user: SMTP_USER,
+            pass: SMTP_PASSWORD,
         },
     });
 };
 const sendClientDashboardEmail = async (clientEmail, clientName, projectId, projectName) => {
-    const transporter = createTransporter();
     const dashboardUrl = `${FRONTEND_URL}/client/${projectId}/dashboard`;
+    // When SMTP is not configured (e.g. localhost), log and return success: false so UI shows "Email not sent"
+    if (!SMTP_USER || !SMTP_PASSWORD) {
+        console.log('\n' + '='.repeat(80));
+        console.log('📧 CLIENT DASHBOARD LINK (SMTP not configured – no email sent to:', clientEmail, ')');
+        console.log('='.repeat(80));
+        console.log('📋 Project:', projectName);
+        console.log('👤 Client:', clientName);
+        console.log('🔗 Dashboard URL:', dashboardUrl);
+        console.log('🔗 Direct Project Link:', `${FRONTEND_URL}/client/${projectId}`);
+        console.log('💡 Set SMTP_USER and SMTP_PASSWORD in backend/.env to send real emails on localhost.');
+        console.log('='.repeat(80) + '\n');
+        return { success: false, error: 'SMTP not configured' };
+    }
+    const transporter = createTransporter();
     // Log the dashboard link to console for easy access during development
     console.log('\n' + '='.repeat(80));
     console.log('📧 CLIENT DASHBOARD LINK (Email would be sent to:', clientEmail, ')');
@@ -47,7 +63,7 @@ const sendClientDashboardEmail = async (clientEmail, clientName, projectId, proj
     console.log('🔗 Direct Project Link:', `${FRONTEND_URL}/client/${projectId}`);
     console.log('='.repeat(80) + '\n');
     const mailOptions = {
-        from: `"Client Project Portal" <${GMAIL_USER}>`,
+        from: `"Kanri Design" <${EMAIL_FROM_CLIENT}>`,
         to: clientEmail,
         subject: `Your Project Dashboard: ${projectName}`,
         html: `
@@ -124,10 +140,10 @@ const sendClientDashboardEmail = async (clientEmail, clientName, projectId, proj
     catch (error) {
         console.error('❌ Email send error:', error.message);
         if (error.code === 'EAUTH') {
-            console.error('   Authentication failed. Please check your Gmail app password.');
+            console.error('   Gmail: Use an App Password (not your normal password). See https://support.google.com/accounts/answer/185833');
         }
         else if (error.code === 'ECONNECTION') {
-            console.error('   Connection failed. Please check your internet connection.');
+            console.error('   Connection failed. Check internet or firewall.');
         }
         return { success: false, error: error.message };
     }
@@ -146,7 +162,7 @@ const sendCollaboratorWelcomeEmail = async (collaboratorEmail, collaboratorName,
     console.log('='.repeat(80) + '\n');
     const safeName = collaboratorName || 'there';
     const mailOptions = {
-        from: `"Client Project Portal" <${GMAIL_USER}>`,
+        from: `"Kanri Design" <${EMAIL_FROM_COLLABORATOR}>`,
         to: collaboratorEmail,
         subject: 'You have been added as a collaborator',
         html: `
@@ -246,7 +262,7 @@ const sendCollaboratorProjectAssignedEmail = async (collaboratorEmail, collabora
     console.log('🔗 Collaborator Dashboard:', dashboardUrl);
     console.log('='.repeat(80) + '\n');
     const mailOptions = {
-        from: `"Client Project Portal" <${GMAIL_USER}>`,
+        from: `"Kanri Design" <${EMAIL_FROM_COLLABORATOR}>`,
         to: collaboratorEmail,
         subject: `New project assigned: ${projectName}`,
         html: `
@@ -284,7 +300,21 @@ const sendCollaboratorProjectAssignedEmail = async (collaboratorEmail, collabora
                 <p>You have been assigned to a new project:</p>
                 <p><strong>${projectName}</strong></p>
                 <div class="btn-wrap">
-                  <a href="${projectUrl}" style="display: inline-block; padding: 12px 24px; background-color: #16a34a; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">Open Project</a>
+                  <a
+                    href="${projectUrl}"
+                    style="
+                      display: inline-block;
+                      padding: 12px 24px;
+                      background-color: #ea580c;
+                      color: #ffffff;
+                      text-decoration: none;
+                      border-radius: 8px;
+                      font-weight: 600;
+                      font-size: 15px;
+                    "
+                  >
+                    Open Project
+                  </a>
                 </div>
                 <p class="secondary-link">
                   Or view all your projects here:<br />
@@ -332,7 +362,6 @@ exports.sendCollaboratorProjectAssignedEmail = sendCollaboratorProjectAssignedEm
 const sendAdminInvoiceUploadedEmail = async (adminEmails, options) => {
     if (!adminEmails.length)
         return { success: false, error: 'No admin emails' };
-    const FRONTEND_URL = 'https://frontned-mblv.vercel.app';
     const adminProjectsUrl = `${FRONTEND_URL}/admin/projects`;
     const projectDetailUrl = options.projectId ? `${FRONTEND_URL}/admin/projects/${options.projectId}` : adminProjectsUrl;
     const isMonthly = options.kind === 'monthly';
@@ -352,7 +381,7 @@ const sendAdminInvoiceUploadedEmail = async (adminEmails, options) => {
     `;
     const transporter = createTransporter();
     const mailOptions = {
-        from: `"Client Project Portal" <${GMAIL_USER}>`,
+        from: `"Kanri Design" <${EMAIL_FROM_ADMIN}>`,
         to: adminEmails.join(', '),
         subject: `[Admin] ${subject}`,
         html: `
@@ -405,3 +434,27 @@ const sendAdminInvoiceUploadedEmail = async (adminEmails, options) => {
     }
 };
 exports.sendAdminInvoiceUploadedEmail = sendAdminInvoiceUploadedEmail;
+// TEMP: helper for manually testing email styling locally.
+// Run: `npm run build` then `node dist/services/emailService.js`
+// This block runs ONLY when this file is executed directly with Node
+async function __sendTestKanriEmail() {
+    try {
+        await (0, exports.sendClientDashboardEmail)('aryanarshad5413@gmail.com', 'Test Client', 'TEST_PROJECT_ID', 'Test Project for Styling');
+        console.log('✅ Test email sent to aryanarshad5413@gmail.com');
+    }
+    catch (err) {
+        console.error('❌ Failed to send test email:', err?.message || err);
+    }
+}
+// Only trigger the test when this module is the entrypoint (node dist/services/emailService.js)
+// Comment out this block after you’re done testing to avoid accidental sends.
+try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const isMain = typeof require !== 'undefined' && require.main === module;
+    if (isMain) {
+        __sendTestKanriEmail().catch(console.error);
+    }
+}
+catch {
+    // ignore if require/module not available (e.g. in some bundlers)
+}

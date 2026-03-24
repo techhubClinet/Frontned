@@ -39,6 +39,8 @@ const ServiceSchema = new mongoose_1.Schema({
     name: { type: String, required: true },
     description: { type: String },
     price: { type: Number, required: true },
+    priceUSD: { type: Number },
+    priceEUR: { type: Number },
     delivery_timeline: { type: String, default: '30 days' },
     is_active: { type: Boolean, default: true },
 }, {

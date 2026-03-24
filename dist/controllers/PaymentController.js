@@ -37,6 +37,7 @@ exports.PaymentController = void 0;
 const Project_1 = require("../models/Project");
 const Service_1 = require("../models/Service");
 const stripe_1 = require("../config/stripe");
+const urls_1 = require("../config/urls");
 const response_1 = require("../views/response");
 const Collaborator_1 = require("../models/Collaborator");
 class PaymentController {
@@ -70,7 +71,7 @@ class PaymentController {
             }
             // Create Stripe checkout session
             const stripe = (0, stripe_1.getStripe)();
-            const FRONTEND_URL = 'https://frontned-mblv.vercel.app';
+            const FRONTEND_URL = (0, urls_1.getFrontendUrl)();
             const session = await stripe.checkout.sessions.create({
                 payment_method_types: ['card'],
                 line_items: [
@@ -87,8 +88,11 @@ class PaymentController {
                     },
                 ],
                 mode: 'payment',
+                // Always create a Stripe Customer so downstream automations can use a stable customer ID.
+                customer_creation: 'always',
                 customer_email: project.client_email || undefined, // Pre-fill email if available
                 billing_address_collection: 'required', // Collect billing address (includes email)
+                tax_id_collection: { enabled: true }, // Show business/VAT toggle and collect Tax ID
                 success_url: `${FRONTEND_URL}/client/${projectId}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
                 cancel_url: `${FRONTEND_URL}/client/${projectId}/payment?payment=cancelled`,
                 metadata: {
@@ -125,11 +129,27 @@ class PaymentController {
         // Handle the event
         if (event.type === 'checkout.session.completed') {
             const session = event.data.object;
+            const stripeCustomerId = typeof session.customer === 'string' ? session.customer : undefined;
+            const billingCompanyName = session.customer_details?.name;
+            const billingTaxIds = (session.customer_details?.tax_ids || [])
+                .map((tax) => tax?.value)
+                .filter((value) => Boolean(value));
             // Update project payment status
             const updateData = {
                 payment_status: 'paid',
                 stripe_payment_id: session.id,
+                stripe_customer_id: stripeCustomerId,
+                billing_company_name: billingCompanyName,
+                billing_tax_ids: billingTaxIds,
             };
+            console.log('[Payment webhook] Billing object captured:', {
+                projectId: session.metadata?.projectId,
+                stripe_payment_id: session.id,
+                stripe_customer_id: stripeCustomerId,
+                billing_company_name: billingCompanyName,
+                billing_tax_ids: billingTaxIds,
+                customer_email: session.customer_details?.email || session.customer_email || null,
+            });
             if (session.metadata.serviceId) {
                 updateData.selected_service = session.metadata.serviceId;
             }
@@ -199,6 +219,22 @@ class PaymentController {
             // Retrieve Stripe session to get payment details and customer email
             const stripe = (0, stripe_1.getStripe)();
             const session = await stripe.checkout.sessions.retrieve(session_id);
+            const stripeCustomerId = typeof session.customer === 'string' ? session.customer : undefined;
+            const billingCompanyName = session.customer_details?.name || undefined;
+            let billingTaxIds = (session.customer_details?.tax_ids || [])
+                .map((tax) => tax?.value)
+                .filter((value) => Boolean(value));
+            if (billingTaxIds.length === 0 && stripeCustomerId) {
+                try {
+                    const listedTaxIds = await stripe.customers.listTaxIds(stripeCustomerId, { limit: 10 });
+                    billingTaxIds = listedTaxIds.data
+                        .map((tax) => tax?.value)
+                        .filter((value) => Boolean(value));
+                }
+                catch (taxErr) {
+                    console.warn('[Payment] Failed to load customer tax IDs:', taxErr?.message || taxErr);
+                }
+            }
             // Check if payment was successful
             if (session.payment_status !== 'paid') {
                 return response_1.ApiResponse.error(res, 'Payment not completed', 400);
@@ -209,18 +245,33 @@ class PaymentController {
             const updateData = {
                 payment_status: 'paid',
                 stripe_payment_id: session.id,
+                stripe_customer_id: stripeCustomerId,
+                billing_company_name: billingCompanyName,
+                billing_tax_ids: billingTaxIds,
             };
+            // Store paid amount from Stripe (amount_total is in cents)
+            if (session.amount_total != null) {
+                updateData.custom_quote_amount = session.amount_total / 100;
+            }
             // Update client email if we got it from Stripe and project doesn't have one
             if (customerEmail && !project.client_email) {
                 updateData.client_email = customerEmail;
             }
-            // Update service selection if in metadata
+            // Update service selection if in metadata (old checkout flow)
             if (session.metadata?.serviceId) {
                 updateData.selected_service = session.metadata.serviceId;
             }
             else if (session.metadata?.customAmount) {
                 updateData.custom_quote_amount = parseFloat(session.metadata.customAmount);
             }
+            console.log('[Payment success] Billing object captured:', {
+                projectId,
+                stripe_payment_id: session.id,
+                stripe_customer_id: stripeCustomerId,
+                billing_company_name: billingCompanyName,
+                billing_tax_ids: billingTaxIds,
+                customer_email: customerEmail || null,
+            });
             const updatedProject = await Project_1.Project.findByIdAndUpdate(projectId, updateData, { new: true });
             if (!updatedProject) {
                 return response_1.ApiResponse.notFound(res, 'Project not found');
@@ -229,8 +280,30 @@ class PaymentController {
             const emailToUse = customerEmail || updatedProject.client_email;
             // Send email to client with dashboard link
             if (emailToUse) {
+                const emailLock = await Project_1.Project.findOneAndUpdate({
+                    _id: projectId,
+                    payment_confirmation_email_sent_at: { $exists: false },
+                }, {
+                    $set: { payment_confirmation_email_sent_at: new Date() },
+                }, { new: true });
+                if (!emailLock) {
+                    console.log('[Payment] Confirmation email already sent earlier, skipping duplicate send for project:', projectId);
+                    return response_1.ApiResponse.success(res, {
+                        project: updatedProject,
+                        email_sent: false,
+                        email_already_sent: true,
+                        email_address: emailToUse,
+                    }, 'Payment confirmed; confirmation email already sent earlier');
+                }
+                console.log('[Payment] Sending confirmation email to:', emailToUse);
                 const { sendClientDashboardEmail } = await Promise.resolve().then(() => __importStar(require('../services/emailService')));
                 const emailResult = await sendClientDashboardEmail(emailToUse, updatedProject.client_name, updatedProject._id.toString(), updatedProject.name);
+                if (emailResult.success) {
+                    console.log('[Payment] ✅ Confirmation email sent to', emailToUse);
+                }
+                else {
+                    console.warn('[Payment] ⚠️ Confirmation email failed:', emailResult.error || 'unknown');
+                }
                 return response_1.ApiResponse.success(res, {
                     project: updatedProject,
                     email_sent: emailResult.success,

@@ -6,6 +6,7 @@ import { Project } from '../models/Project'
 import { ApiResponse } from '../views/response'
 import { AuthRequest } from '../middleware/auth'
 import { getStripe } from '../config/stripe'
+import { getFrontendUrl } from '../config/urls'
 import { sendCollaboratorWelcomeEmail } from '../services/emailService'
 
 export class CollaboratorController {
@@ -231,7 +232,7 @@ export class CollaboratorController {
         await collaborator.save()
       }
 
-      const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://www.kanridesign.com').replace(/\/$/, '')
+      const FRONTEND_URL = getFrontendUrl()
       const refreshUrl = `${FRONTEND_URL}/collaborator/stripe/refresh`
       const returnUrl = `${FRONTEND_URL}/collaborator/stripe/return`
 

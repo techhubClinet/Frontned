@@ -9,6 +9,10 @@ export interface IProject extends Document {
   status: 'pending' | 'in_progress' | 'review' | 'completed' | 'revision'
   payment_status: 'pending' | 'paid' | 'failed'
   stripe_payment_id?: string
+  stripe_customer_id?: string
+  billing_company_name?: string
+  billing_tax_ids?: string[]
+  payment_confirmation_email_sent_at?: Date
   selected_service?: mongoose.Types.ObjectId
   service_name?: string // Service name for simple projects (predefined services)
   service_price?: number // Price for simple projects (predefined services)
@@ -75,6 +79,10 @@ const ProjectSchema = new Schema<IProject>(
       default: 'pending',
     },
     stripe_payment_id: { type: String },
+    stripe_customer_id: { type: String },
+    billing_company_name: { type: String },
+    billing_tax_ids: [{ type: String }],
+    payment_confirmation_email_sent_at: { type: Date },
     selected_service: { type: Schema.Types.ObjectId, ref: 'Service' },
     service_name: { type: String },
     service_price: { type: Number },

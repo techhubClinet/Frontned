@@ -2,13 +2,53 @@ import { Request, Response } from 'express'
 import Stripe from 'stripe'
 import { Project } from '../models/Project'
 import { getStripe, getStripeWebhookSecret } from '../config/stripe'
+import { getFrontendUrl, getFrontendUrlNoWww } from '../config/urls'
 import { ApiResponse } from '../views/response'
 import { sendClientDashboardEmail } from '../services/emailService'
 
 // Frontend URL for Stripe redirects.
 // Note: we trim trailing slashes so URL concatenation does not create `//`.
-const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://www.kanridesign.com').replace(/\/$/, '')
-const FRONTEND_URL_NO_WWW = (process.env.FRONTEND_URL_NO_WWW || 'https://kanridesign.com').replace(/\/$/, '')
+const FRONTEND_URL = getFrontendUrl()
+const FRONTEND_URL_NO_WWW = getFrontendUrlNoWww()
+
+async function getBillingTaxDetails(
+  stripe: Stripe,
+  session: Stripe.Checkout.Session
+): Promise<{ stripeCustomerId?: string; billingCompanyName?: string; billingTaxIds?: string[] }> {
+  const stripeCustomerId = typeof session.customer === 'string' ? session.customer : undefined
+  const billingCompanyName = session.customer_details?.name || undefined
+  const taxIdsFromSession = (session.customer_details?.tax_ids || [])
+    .map((tax) => tax?.value)
+    .filter((value): value is string => Boolean(value))
+
+  if (taxIdsFromSession.length > 0 || !stripeCustomerId) {
+    return {
+      stripeCustomerId,
+      billingCompanyName,
+      billingTaxIds: taxIdsFromSession,
+    }
+  }
+
+  try {
+    const listed = await stripe.customers.listTaxIds(stripeCustomerId, { limit: 10 })
+    const billingTaxIds = listed.data
+      .map((tax) => tax?.value)
+      .filter((value): value is string => Boolean(value))
+
+    return {
+      stripeCustomerId,
+      billingCompanyName,
+      billingTaxIds,
+    }
+  } catch (error: any) {
+    console.warn('[Stripe] Failed to list customer tax IDs:', error?.message || error)
+    return {
+      stripeCustomerId,
+      billingCompanyName,
+      billingTaxIds: [],
+    }
+  }
+}
 
 /**
  * POST /api/stripe/create-checkout-session
@@ -70,7 +110,14 @@ export async function createCheckoutSession(req: Request, res: Response): Promis
         },
       ],
       mode: 'payment',
+      // Always create a Stripe Customer so downstream automation can rely on customer ID.
+      customer_creation: 'always',
+      // Pre-fill email when available; Checkout still allows user to edit if needed.
       customer_email: project.client_email || undefined,
+      // Require full billing details (name, email, country, billing address).
+      billing_address_collection: 'required',
+      // Show "I'm purchasing as a business" and collect company tax/VAT ID.
+      tax_id_collection: { enabled: true },
       success_url: `${baseUrl}/client/${projectId}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/client/${projectId}/payment?payment=cancelled`,
       metadata: {
@@ -158,13 +205,27 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
     const currency = (session.currency as 'usd' | 'eur') || 'usd'
     const amountInMainUnit = amountTotal / 100
 
+    const stripe = getStripe()
+    const { stripeCustomerId, billingCompanyName, billingTaxIds } = await getBillingTaxDetails(stripe, session)
+
     const update: Record<string, any> = {
       payment_status: 'paid',
       stripe_payment_id: session.id,
+      stripe_customer_id: stripeCustomerId,
+      billing_company_name: billingCompanyName,
+      billing_tax_ids: billingTaxIds || [],
       invoice_visible_to_client: true,
       currency,
       custom_quote_amount: amountInMainUnit,
     }
+    console.log('[Stripe] Billing object captured:', {
+      projectId,
+      stripe_payment_id: session.id,
+      stripe_customer_id: stripeCustomerId,
+      billing_company_name: billingCompanyName,
+      billing_tax_ids: billingTaxIds || [],
+      customer_email: session.customer_details?.email || session.customer_email || null,
+    })
     // If an invoice already exists (e.g. edge case), mark it as payment_completed
     const hasInvoice = !!(project.invoice_url || project.invoice_status)
     if (hasInvoice) {
@@ -180,6 +241,22 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
       (session.customer_details?.email as string) ||
       project.client_email
     if (clientEmail) {
+      const emailLock = await Project.findOneAndUpdate(
+        {
+          _id: projectId,
+          payment_confirmation_email_sent_at: { $exists: false },
+        },
+        {
+          $set: { payment_confirmation_email_sent_at: new Date() },
+        },
+        { new: true }
+      )
+
+      if (!emailLock) {
+        console.log('[Stripe] Confirmation email already sent earlier, skipping duplicate send for project:', projectId)
+        return
+      }
+
       sendClientDashboardEmail(
         clientEmail,
         project.client_name || 'Client',

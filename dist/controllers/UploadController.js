@@ -190,6 +190,14 @@ class UploadController {
             if (!project.invoice_url) {
                 return response_1.ApiResponse.notFound(res, 'Invoice not found for this project');
             }
+            // Clients may only view invoice after payment (invoice made visible by webhook)
+            const authReq = req;
+            if (authReq.user?.role === 'client') {
+                const visible = project.invoice_visible_to_client === true || project.invoice_status === 'payment_completed';
+                if (!visible) {
+                    return response_1.ApiResponse.error(res, 'Invoice is not yet available for this project', 403);
+                }
+            }
             // Store invoice URL in a const to satisfy TypeScript
             const invoiceUrl = project.invoice_url;
             const invoicePublicId = project.invoice_public_id;
@@ -218,13 +226,9 @@ class UploadController {
                 try {
                     // Use Cloudinary's API endpoint to download the file directly
                     // Format: https://api.cloudinary.com/v1_1/{cloud_name}/resources/raw/upload/{public_id}
-                    // Hardcoded Cloudinary credentials
                     const cloudName = 'dftnqqcjz';
                     const apiKey = '419724397335875';
                     const apiSecret = 'Q7usOM7s5EsyeubXFzy5fQ1I_7A';
-                    if (!cloudName || !apiKey || !apiSecret) {
-                        throw new Error('Cloudinary credentials not configured');
-                    }
                     // Use Cloudinary's authenticated download endpoint
                     // We'll fetch from the secure_url but add authentication
                     // Actually, let's try using the direct secure_url first - it should work if file is public

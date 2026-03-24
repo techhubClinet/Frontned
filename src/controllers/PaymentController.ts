@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { Project } from '../models/Project'
 import { Service } from '../models/Service'
 import { getStripe } from '../config/stripe'
+import { getFrontendUrl } from '../config/urls'
 import { ApiResponse } from '../views/response'
 import { AuthRequest } from '../middleware/auth'
 import { Collaborator } from '../models/Collaborator'
@@ -42,7 +43,7 @@ export class PaymentController {
 
       // Create Stripe checkout session
       const stripe = getStripe()
-      const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://www.kanridesign.com').replace(/\/$/, '')
+      const FRONTEND_URL = getFrontendUrl()
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [
@@ -59,8 +60,11 @@ export class PaymentController {
           },
         ],
         mode: 'payment',
+        // Always create a Stripe Customer so downstream automations can use a stable customer ID.
+        customer_creation: 'always',
         customer_email: project.client_email || undefined, // Pre-fill email if available
         billing_address_collection: 'required', // Collect billing address (includes email)
+        tax_id_collection: { enabled: true }, // Show business/VAT toggle and collect Tax ID
         success_url: `${FRONTEND_URL}/client/${projectId}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${FRONTEND_URL}/client/${projectId}/payment?payment=cancelled`,
         metadata: {
@@ -101,12 +105,28 @@ export class PaymentController {
     // Handle the event
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as any
+      const stripeCustomerId = typeof session.customer === 'string' ? session.customer : undefined
+      const billingCompanyName = session.customer_details?.name
+      const billingTaxIds = (session.customer_details?.tax_ids || [])
+        .map((tax: any) => tax?.value)
+        .filter((value: any) => Boolean(value))
 
       // Update project payment status
       const updateData: any = {
         payment_status: 'paid',
         stripe_payment_id: session.id,
+        stripe_customer_id: stripeCustomerId,
+        billing_company_name: billingCompanyName,
+        billing_tax_ids: billingTaxIds,
       }
+      console.log('[Payment webhook] Billing object captured:', {
+        projectId: session.metadata?.projectId,
+        stripe_payment_id: session.id,
+        stripe_customer_id: stripeCustomerId,
+        billing_company_name: billingCompanyName,
+        billing_tax_ids: billingTaxIds,
+        customer_email: session.customer_details?.email || session.customer_email || null,
+      })
 
       if (session.metadata.serviceId) {
         updateData.selected_service = session.metadata.serviceId
@@ -194,6 +214,22 @@ export class PaymentController {
       // Retrieve Stripe session to get payment details and customer email
       const stripe = getStripe()
       const session = await stripe.checkout.sessions.retrieve(session_id as string)
+      const stripeCustomerId = typeof session.customer === 'string' ? session.customer : undefined
+      const billingCompanyName = session.customer_details?.name || undefined
+      let billingTaxIds = (session.customer_details?.tax_ids || [])
+        .map((tax: any) => tax?.value)
+        .filter((value: any): value is string => Boolean(value))
+
+      if (billingTaxIds.length === 0 && stripeCustomerId) {
+        try {
+          const listedTaxIds = await stripe.customers.listTaxIds(stripeCustomerId, { limit: 10 })
+          billingTaxIds = listedTaxIds.data
+            .map((tax) => tax?.value)
+            .filter((value): value is string => Boolean(value))
+        } catch (taxErr: any) {
+          console.warn('[Payment] Failed to load customer tax IDs:', taxErr?.message || taxErr)
+        }
+      }
 
       // Check if payment was successful
       if (session.payment_status !== 'paid') {
@@ -207,6 +243,9 @@ export class PaymentController {
       const updateData: any = {
         payment_status: 'paid',
         stripe_payment_id: session.id,
+        stripe_customer_id: stripeCustomerId,
+        billing_company_name: billingCompanyName,
+        billing_tax_ids: billingTaxIds,
       }
 
       // Store paid amount from Stripe (amount_total is in cents)
@@ -226,6 +265,15 @@ export class PaymentController {
         updateData.custom_quote_amount = parseFloat(session.metadata.customAmount)
       }
 
+      console.log('[Payment success] Billing object captured:', {
+        projectId,
+        stripe_payment_id: session.id,
+        stripe_customer_id: stripeCustomerId,
+        billing_company_name: billingCompanyName,
+        billing_tax_ids: billingTaxIds,
+        customer_email: customerEmail || null,
+      })
+
       const updatedProject = await Project.findByIdAndUpdate(projectId, updateData, { new: true })
 
       if (!updatedProject) {
@@ -237,6 +285,27 @@ export class PaymentController {
 
       // Send email to client with dashboard link
       if (emailToUse) {
+        const emailLock = await Project.findOneAndUpdate(
+          {
+            _id: projectId,
+            payment_confirmation_email_sent_at: { $exists: false },
+          },
+          {
+            $set: { payment_confirmation_email_sent_at: new Date() },
+          },
+          { new: true }
+        )
+
+        if (!emailLock) {
+          console.log('[Payment] Confirmation email already sent earlier, skipping duplicate send for project:', projectId)
+          return ApiResponse.success(res, {
+            project: updatedProject,
+            email_sent: false,
+            email_already_sent: true,
+            email_address: emailToUse,
+          }, 'Payment confirmed; confirmation email already sent earlier')
+        }
+
         console.log('[Payment] Sending confirmation email to:', emailToUse)
         const { sendClientDashboardEmail } = await import('../services/emailService')
         const emailResult = await sendClientDashboardEmail(

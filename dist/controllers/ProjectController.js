@@ -37,6 +37,22 @@ exports.ProjectController = void 0;
 const Project_1 = require("../models/Project");
 const response_1 = require("../views/response");
 const emailService_1 = require("../services/emailService");
+const holdedService_1 = require("../services/holdedService");
+const deliveryController_1 = require("./deliveryController");
+// Base URL for masked delivery links (used in status_notes and in API response for client)
+const BACKEND_PORT = process.env.PORT || '3001';
+const DELIVERY_BASE_URL = process.env.BACKEND_PUBLIC_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
+    (process.env.NODE_ENV !== 'production' ? `http://localhost:${BACKEND_PORT}` : '');
+/** Strip private deliveryUrl from project for client; add deliveryMaskedLink when deliveryToken exists. */
+function sanitizeProjectForClient(project) {
+    const p = project.toObject ? project.toObject() : { ...project };
+    delete p.deliveryUrl;
+    if (p.deliveryToken && DELIVERY_BASE_URL) {
+        p.deliveryMaskedLink = `${DELIVERY_BASE_URL.replace(/\/$/, '')}/delivery/${p.deliveryToken}`;
+    }
+    return p;
+}
 class ProjectController {
     // Get project by ID (for client link validation)
     static async getProject(req, res) {
@@ -56,6 +72,10 @@ class ProjectController {
                 if (!isOwner && !isUnclaimedOrUnpaid) {
                     return response_1.ApiResponse.error(res, 'You do not have access to this project', 403);
                 }
+            }
+            // Client: do not expose deliveryUrl; expose deliveryMaskedLink when deliveryToken exists
+            if (authReq.user?.role === 'client') {
+                return response_1.ApiResponse.success(res, sanitizeProjectForClient(project), 'Project retrieved successfully');
             }
             return response_1.ApiResponse.success(res, project, 'Project retrieved successfully');
         }
@@ -113,6 +133,20 @@ class ProjectController {
             // Get briefing
             const { ProjectBriefing } = await Promise.resolve().then(() => __importStar(require('../models/Briefing')));
             const briefing = await ProjectBriefing.findOne({ project_id: projectId });
+            // Refresh Holded invoice status so client sees "View invoice" only when approved
+            if (project.holded_document_id && project.payment_status === 'paid') {
+                try {
+                    const doc = await (0, holdedService_1.getHoldedDocument)(project.holded_document_id);
+                    project.holded_invoice_status = (0, holdedService_1.getHoldedInvoiceStatus)(doc);
+                    await project.save().catch(() => { });
+                    console.log('[Holded] Project details refresh:', project.holded_document_id, 'status from API:', doc?.status, 'docNumber:', doc?.docNumber, '→', project.holded_invoice_status);
+                }
+                catch (e) {
+                    console.warn('[Holded] Failed to refresh invoice status:', e?.message);
+                    project.holded_invoice_status = 'draft';
+                    await project.save().catch(() => { });
+                }
+            }
             // Get briefing images
             const { BriefingImage } = await Promise.resolve().then(() => __importStar(require('../models/Briefing')));
             const images = await BriefingImage.find({ project_id: projectId }).sort({ order: 1 });
@@ -124,8 +158,9 @@ class ProjectController {
                 notes: img.notes,
                 order: img.order,
             }));
+            const projectPayload = authReq.user?.role === 'client' ? sanitizeProjectForClient(project) : project;
             return response_1.ApiResponse.success(res, {
-                project,
+                project: projectPayload,
                 briefing: briefing || null,
                 images: formattedImages || [],
             });
@@ -137,7 +172,7 @@ class ProjectController {
     // Create new project (admin)
     static async createProject(req, res) {
         try {
-            const { name, client_name, client_email, project_type, service, service_price, service_description, amount, deadline, delivery_timeline, max_revisions } = req.body;
+            const { name, client_name, client_email, project_type, service, service_price, service_price_eur, service_description, amount, deadline, delivery_timeline, max_revisions, selected_service_id: selectedServiceId } = req.body;
             if (!name) {
                 return response_1.ApiResponse.error(res, 'Project name is required', 400);
             }
@@ -149,6 +184,10 @@ class ProjectController {
                 status: 'pending',
                 payment_status: 'pending',
             };
+            // Link to Service document when admin selected an existing service
+            if (selectedServiceId && project_type === 'simple') {
+                projectData.selected_service = selectedServiceId;
+            }
             // Handle service selection for simple projects (catalog)
             if (project_type === 'simple' && service && service !== 'Custom Service') {
                 projectData.service_name = service;
@@ -161,6 +200,11 @@ class ProjectController {
                     const price = parseFloat(service_price.toString().replace('$', '').replace(',', '').trim());
                     if (!isNaN(price))
                         projectData.service_price = price;
+                }
+                if (service_price_eur !== undefined && service_price_eur !== null && service_price_eur !== '') {
+                    const priceEur = parseFloat(String(service_price_eur).replace('$', '').replace(',', '').replace('€', '').trim());
+                    if (!isNaN(priceEur) && priceEur >= 0)
+                        projectData.service_price_eur = priceEur;
                 }
             }
             else if (project_type === 'custom' || (service === 'Custom Service' && amount)) {
@@ -265,7 +309,8 @@ class ProjectController {
             const projects = await Project_1.Project.find({ client_email: userEmail })
                 .populate('selected_service')
                 .sort({ created_at: -1 });
-            return response_1.ApiResponse.success(res, projects, 'Your projects retrieved successfully');
+            const sanitized = projects.map((p) => sanitizeProjectForClient(p));
+            return response_1.ApiResponse.success(res, sanitized, 'Your projects retrieved successfully');
         }
         catch (error) {
             return response_1.ApiResponse.error(res, error.message, 500);
@@ -275,7 +320,7 @@ class ProjectController {
     static async updateStatus(req, res) {
         try {
             const { projectId } = req.params;
-            const { status, notes } = req.body;
+            const { status, notes, notes_key } = req.body;
             const authReq = req;
             if (!status) {
                 return response_1.ApiResponse.error(res, 'Status is required', 400);
@@ -301,8 +346,33 @@ class ProjectController {
                 update.completed_at = new Date();
             }
             if (typeof notes === 'string' && notes.trim().length > 0) {
-                // Store note under the specific status key (e.g. status_notes.review)
-                update[`status_notes.${status}`] = notes.trim();
+                // Store note under a specific key in status_notes (default: the status name)
+                const key = typeof notes_key === 'string' && notes_key.trim().length > 0
+                    ? notes_key.trim()
+                    : status;
+                let noteToStore = notes.trim();
+                // Professional masked delivery link: when status is "review" and notes contain "Delivery link: <url>"
+                const deliveryPrefix = 'Delivery link:';
+                if (status === 'review' && noteToStore.toLowerCase().startsWith(deliveryPrefix.toLowerCase())) {
+                    const afterPrefix = noteToStore.slice(deliveryPrefix.length).trim();
+                    const urlMatch = afterPrefix.split(/\s/)[0];
+                    const validUrl = (0, deliveryController_1.normalizeAndValidateDeliveryUrl)(urlMatch);
+                    if (validUrl) {
+                        let token = project.deliveryToken;
+                        if (!token) {
+                            token = (0, deliveryController_1.generateDeliveryToken)();
+                        }
+                        update.deliveryUrl = validUrl;
+                        update.deliveryToken = token;
+                        update.isDelivered = true;
+                        const baseUrl = DELIVERY_BASE_URL;
+                        noteToStore = baseUrl ? `${deliveryPrefix} ${baseUrl.replace(/\/$/, '')}/delivery/${token}` : `${deliveryPrefix} [Link]`;
+                    }
+                    else if (urlMatch) {
+                        return response_1.ApiResponse.error(res, 'Invalid delivery link. Please use a valid http:// or https:// URL.', 400);
+                    }
+                }
+                update[`status_notes.${key}`] = noteToStore;
             }
             const updatedProject = await Project_1.Project.findByIdAndUpdate(projectId, update, { new: true });
             if (!updatedProject) {
@@ -475,7 +545,7 @@ class ProjectController {
                 return response_1.ApiResponse.error(res, 'Only admin can edit catalog items', 403);
             }
             const { projectId } = req.params;
-            const { name, service_name, service_price, service_description, delivery_timeline, max_revisions } = req.body;
+            const { name, service_name, service_price, service_price_eur, service_description, delivery_timeline, max_revisions } = req.body;
             const project = await Project_1.Project.findById(projectId);
             if (!project) {
                 return response_1.ApiResponse.notFound(res, 'Project not found');
@@ -498,6 +568,16 @@ class ProjectController {
                     : parseFloat(String(service_price).replace(/\$/g, '').replace(/,/g, '').trim());
                 if (!isNaN(price) && price >= 0)
                     set.service_price = price;
+            }
+            if (service_price_eur !== undefined && service_price_eur !== null && service_price_eur !== '') {
+                const priceEur = typeof service_price_eur === 'number'
+                    ? service_price_eur
+                    : parseFloat(String(service_price_eur).replace(/[€$]/g, '').replace(/,/g, '').trim());
+                if (!isNaN(priceEur) && priceEur >= 0)
+                    set.service_price_eur = priceEur;
+            }
+            else if (service_price_eur === null || service_price_eur === '') {
+                set.service_price_eur = undefined;
             }
             if (typeof max_revisions === 'number' && max_revisions >= 0 && max_revisions <= 99)
                 set.max_revisions = max_revisions;

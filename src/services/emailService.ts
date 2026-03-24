@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import { getFrontendUrl } from '../config/urls'
 
 // Email configuration from environment (Kanri panel addresses)
 const SMTP_USER = process.env.SMTP_USER || process.env.GMAIL_USER
@@ -7,7 +8,7 @@ const EMAIL_FROM_CLIENT = process.env.EMAIL_FROM_CLIENT || SMTP_USER || 'clients
 const EMAIL_FROM_COLLABORATOR = process.env.EMAIL_FROM_COLLABORATOR || SMTP_USER || 'collaborators@kanridesign.com'
 const EMAIL_FROM_ADMIN = process.env.EMAIL_FROM_ADMIN || SMTP_USER || 'admin@kanridesign.com'
 
-const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://www.kanridesign.com').replace(/\/$/, '')
+const FRONTEND_URL = getFrontendUrl()
 
 const createTransporter = () => {
   if (!SMTP_USER || !SMTP_PASSWORD) {

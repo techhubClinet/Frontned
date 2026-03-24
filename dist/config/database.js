@@ -5,8 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.connectDatabase = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
-// Hardcoded MongoDB connection string
-const MONGODB_URI = 'mongodb+srv://ali:ali@cluster0.o8bu9nt.mongodb.net/client-project-portal';
+const MONGODB_URI = process.env.MONGODB_URI ||
+    'mongodb+srv://ali:ali@cluster0.o8bu9nt.mongodb.net/client-project-portal';
 // Increase buffer timeout so cold-start connections don't fail (default 10s -> 30s)
 mongoose_1.default.set('bufferTimeoutMS', 30000);
 // Cache the connection to reuse in serverless environments
