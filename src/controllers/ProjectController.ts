@@ -8,17 +8,28 @@ import { generateDeliveryToken, normalizeAndValidateDeliveryUrl } from './delive
 
 // Base URL for masked delivery links (used in status_notes and in API response for client)
 const BACKEND_PORT = process.env.PORT || '3001'
-const DELIVERY_BASE_URL =
+const DEFAULT_DELIVERY_BASE_URL =
+  process.env.DELIVERY_PUBLIC_URL ||
   process.env.BACKEND_PUBLIC_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
   (process.env.NODE_ENV !== 'production' ? `http://localhost:${BACKEND_PORT}` : '')
 
+function resolveDeliveryBaseUrl(req?: Request): string {
+  if (process.env.DELIVERY_PUBLIC_URL) return process.env.DELIVERY_PUBLIC_URL
+  if (process.env.BACKEND_PUBLIC_URL) return process.env.BACKEND_PUBLIC_URL
+  const host = req?.get?.('host')
+  const proto = (req?.headers?.['x-forwarded-proto'] as string) || req?.protocol
+  if (host && proto) return `${proto}://${host}`
+  return DEFAULT_DELIVERY_BASE_URL
+}
+
 /** Strip private deliveryUrl from project for client; add deliveryMaskedLink when deliveryToken exists. */
-function sanitizeProjectForClient(project: any): any {
+function sanitizeProjectForClient(project: any, req?: Request): any {
   const p = project.toObject ? project.toObject() : { ...project }
   delete p.deliveryUrl
-  if (p.deliveryToken && DELIVERY_BASE_URL) {
-    p.deliveryMaskedLink = `${DELIVERY_BASE_URL.replace(/\/$/, '')}/delivery/${p.deliveryToken}`
+  const baseUrl = resolveDeliveryBaseUrl(req)
+  if (p.deliveryToken && baseUrl) {
+    p.deliveryMaskedLink = `${baseUrl.replace(/\/$/, '')}/delivery/${p.deliveryToken}`
   }
   return p
 }
@@ -48,7 +59,7 @@ export class ProjectController {
 
       // Client: do not expose deliveryUrl; expose deliveryMaskedLink when deliveryToken exists
       if (authReq.user?.role === 'client') {
-        return ApiResponse.success(res, sanitizeProjectForClient(project), 'Project retrieved successfully')
+        return ApiResponse.success(res, sanitizeProjectForClient(project, req), 'Project retrieved successfully')
       }
 
       return ApiResponse.success(res, project, 'Project retrieved successfully')
@@ -148,7 +159,7 @@ export class ProjectController {
         order: img.order,
       }))
 
-      const projectPayload = authReq.user?.role === 'client' ? sanitizeProjectForClient(project) : project
+      const projectPayload = authReq.user?.role === 'client' ? sanitizeProjectForClient(project, req) : project
 
       return ApiResponse.success(res, {
         project: projectPayload,
@@ -385,7 +396,7 @@ export class ProjectController {
             update.deliveryUrl = validUrl
             update.deliveryToken = token
             update.isDelivered = true
-            const baseUrl = DELIVERY_BASE_URL
+            const baseUrl = resolveDeliveryBaseUrl(req)
             noteToStore = baseUrl ? `${deliveryPrefix} ${baseUrl.replace(/\/$/, '')}/delivery/${token}` : `${deliveryPrefix} [Link]`
           } else if (urlMatch) {
             return ApiResponse.error(

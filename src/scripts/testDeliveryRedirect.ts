@@ -84,7 +84,9 @@ async function run(): Promise<void> {
     await deliveryRedirect({ params: { token } } as any, res5 as any)
     assert.strictEqual(res5.statusCode, 500)
     assert.strictEqual(res5.contentType, 'html')
-    assert.ok((res5.body || '').includes('Redirect unavailable'))
+    const body5 = res5.body || ''
+    assert.ok(body5.includes('Redirect unavailable'))
+    assert.ok(body5.includes('Karani'))
 
     // URL normalization helper checks.
     assert.strictEqual(normalizeAndValidateDeliveryUrl('  https://drive.google.com/file  '), 'https://drive.google.com/file')

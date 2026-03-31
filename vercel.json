@@ -12,6 +12,10 @@
       "dest": "/api/index.ts"
     },
     {
+      "src": "/delivery/(.*)",
+      "dest": "/api/index.ts"
+    },
+    {
       "src": "/health",
       "dest": "/api/index.ts"
     }
