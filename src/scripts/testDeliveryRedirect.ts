@@ -86,7 +86,7 @@ async function run(): Promise<void> {
     assert.strictEqual(res5.contentType, 'html')
     const body5 = res5.body || ''
     assert.ok(body5.includes('Redirect unavailable'))
-    assert.ok(body5.includes('Karani'))
+    assert.ok(body5.includes('KANRI'))
 
     // URL normalization helper checks.
     assert.strictEqual(normalizeAndValidateDeliveryUrl('  https://drive.google.com/file  '), 'https://drive.google.com/file')

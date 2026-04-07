@@ -4,7 +4,7 @@ import mongoose from 'mongoose'
 import { Project } from '../models/Project'
 import { getFrontendUrl } from '../config/urls'
 
-const SITE_TITLE = 'Karani'
+const SITE_TITLE = 'KANRI'
 
 /** Vite shield + bolt (same asset as frontend/public/vite.svg) for tab icon when JPEG unavailable. */
 const FAVICON_SVG_DATA_URI =

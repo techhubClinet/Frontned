@@ -159,7 +159,37 @@ export class ProjectController {
         order: img.order,
       }))
 
-      const projectPayload = authReq.user?.role === 'client' ? sanitizeProjectForClient(project, req) : project
+      const projectPayload =
+        authReq.user?.role === 'client'
+          ? sanitizeProjectForClient(project, req)
+          : (project.toObject ? project.toObject() : project)
+
+      // Backward-compat: older cloned simple projects may miss EUR price.
+      // If this specific order has no EUR amount, try to inherit the current catalog template EUR value by service_name.
+      if (
+        projectPayload?.project_type === 'simple' &&
+        !(Number(projectPayload?.service_price_eur) > 0) &&
+        projectPayload?.service_name
+      ) {
+        const templateWithEur = await Project.findOne({
+          _id: { $ne: project._id },
+          project_type: 'simple',
+          service_name: projectPayload.service_name,
+          service_price_eur: { $gt: 0 },
+          $or: [
+            { client_email: { $exists: false } },
+            { client_email: null },
+            { client_email: '' },
+          ],
+        })
+          .sort({ updated_at: -1 })
+          .select({ service_price_eur: 1 })
+          .lean()
+
+        if (templateWithEur?.service_price_eur) {
+          projectPayload.service_price_eur = templateWithEur.service_price_eur
+        }
+      }
 
       return ApiResponse.success(res, {
         project: projectPayload,
@@ -296,9 +326,13 @@ export class ProjectController {
         client_name: 'Client',
         client_email: userEmail,
         project_type: 'simple',
+        selected_service: template.selected_service,
         service_name: template.service_name,
         service_price: template.service_price,
+        service_price_eur: template.service_price_eur,
+        service_description: template.service_description,
         delivery_timeline: template.delivery_timeline || '30 days',
+        max_revisions: template.max_revisions ?? 3,
         status: 'pending',
         payment_status: 'pending',
       })
@@ -734,6 +768,16 @@ export class ProjectController {
       // Check if project is paid
       if (project.payment_status !== 'paid') {
         return ApiResponse.error(res, 'Project must be paid before claiming revisions', 400)
+      }
+
+      // Once client accepts delivery (completed), revisions are locked.
+      if (project.status === 'completed') {
+        return ApiResponse.error(res, 'Revisions are no longer available after project acceptance', 400)
+      }
+
+      // Revisions are only valid while work is under review (or already in revision).
+      if (project.status !== 'review' && project.status !== 'revision') {
+        return ApiResponse.error(res, 'You can request a revision only while the project is in review', 400)
       }
 
       // Get current revision counts
