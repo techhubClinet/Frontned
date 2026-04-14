@@ -84,11 +84,6 @@ export class PaymentController {
         automatic_tax: { enabled: true },
         // Always create a Stripe Customer so downstream automations can use a stable customer ID.
         customer_creation: 'always',
-        // Persist collected identity/address on the Customer for tax and invoicing consistency.
-        customer_update: {
-          address: 'auto',
-          name: 'auto',
-        },
         customer_email: project.client_email || undefined, // Pre-fill email if available
         billing_address_collection: 'required', // Collect billing address (includes email)
         tax_id_collection: { enabled: true }, // Show business/VAT toggle and collect Tax ID

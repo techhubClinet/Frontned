@@ -135,11 +135,6 @@ export async function createCheckoutSession(req: Request, res: Response): Promis
       automatic_tax: { enabled: true },
       // Always create a Stripe Customer so downstream automation can rely on customer ID.
       customer_creation: 'always',
-      // Persist collected identity/address on the Customer for tax and invoicing consistency.
-      customer_update: {
-        address: 'auto',
-        name: 'auto',
-      },
       // Pre-fill email when available; Checkout still allows user to edit if needed.
       customer_email: project.client_email || undefined,
       // Require full billing details (name, email, country, billing address).
