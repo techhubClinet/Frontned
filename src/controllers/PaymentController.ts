@@ -7,6 +7,24 @@ import { ApiResponse } from '../views/response'
 import { AuthRequest } from '../middleware/auth'
 import { Collaborator } from '../models/Collaborator'
 
+async function assertStripeTaxIsReady(stripe: ReturnType<typeof getStripe>): Promise<void> {
+  const taxSettings = await stripe.tax.settings.retrieve()
+  if (taxSettings.status === 'active') {
+    return
+  }
+
+  const pendingDetails = taxSettings.status_details?.pending
+  const missingFields = pendingDetails?.missing_fields || []
+  const missingFieldsHint = missingFields.length > 0
+    ? ` Missing fields: ${missingFields.join(', ')}.`
+    : ''
+
+  throw new Error(
+    `Stripe Tax is not fully configured for this account (status: ${taxSettings.status}).` +
+    `${missingFieldsHint} Configure Stripe Tax in Dashboard (head office, tax code/behavior, and registrations where required).`
+  )
+}
+
 export class PaymentController {
   // Create Stripe checkout session
   static async createCheckoutSession(req: Request, res: Response) {
@@ -44,6 +62,8 @@ export class PaymentController {
       // Create Stripe checkout session
       const stripe = getStripe()
       const FRONTEND_URL = getFrontendUrl()
+      // Fail fast with actionable diagnostics instead of a generic Checkout creation error.
+      await assertStripeTaxIsReady(stripe)
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [
@@ -60,8 +80,15 @@ export class PaymentController {
           },
         ],
         mode: 'payment',
+        // Stripe Tax: dynamically calculate tax by billing country/address.
+        automatic_tax: { enabled: true },
         // Always create a Stripe Customer so downstream automations can use a stable customer ID.
         customer_creation: 'always',
+        // Persist collected identity/address on the Customer for tax and invoicing consistency.
+        customer_update: {
+          address: 'auto',
+          name: 'auto',
+        },
         customer_email: project.client_email || undefined, // Pre-fill email if available
         billing_address_collection: 'required', // Collect billing address (includes email)
         tax_id_collection: { enabled: true }, // Show business/VAT toggle and collect Tax ID
