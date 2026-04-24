@@ -41,15 +41,28 @@ const holdedService_1 = require("../services/holdedService");
 const deliveryController_1 = require("./deliveryController");
 // Base URL for masked delivery links (used in status_notes and in API response for client)
 const BACKEND_PORT = process.env.PORT || '3001';
-const DELIVERY_BASE_URL = process.env.BACKEND_PUBLIC_URL ||
+const DEFAULT_DELIVERY_BASE_URL = process.env.DELIVERY_PUBLIC_URL ||
+    process.env.BACKEND_PUBLIC_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
     (process.env.NODE_ENV !== 'production' ? `http://localhost:${BACKEND_PORT}` : '');
+function resolveDeliveryBaseUrl(req) {
+    if (process.env.DELIVERY_PUBLIC_URL)
+        return process.env.DELIVERY_PUBLIC_URL;
+    if (process.env.BACKEND_PUBLIC_URL)
+        return process.env.BACKEND_PUBLIC_URL;
+    const host = req?.get?.('host');
+    const proto = req?.headers?.['x-forwarded-proto'] || req?.protocol;
+    if (host && proto)
+        return `${proto}://${host}`;
+    return DEFAULT_DELIVERY_BASE_URL;
+}
 /** Strip private deliveryUrl from project for client; add deliveryMaskedLink when deliveryToken exists. */
-function sanitizeProjectForClient(project) {
+function sanitizeProjectForClient(project, req) {
     const p = project.toObject ? project.toObject() : { ...project };
     delete p.deliveryUrl;
-    if (p.deliveryToken && DELIVERY_BASE_URL) {
-        p.deliveryMaskedLink = `${DELIVERY_BASE_URL.replace(/\/$/, '')}/delivery/${p.deliveryToken}`;
+    const baseUrl = resolveDeliveryBaseUrl(req);
+    if (p.deliveryToken && baseUrl) {
+        p.deliveryMaskedLink = `${baseUrl.replace(/\/$/, '')}/delivery/${p.deliveryToken}`;
     }
     return p;
 }
@@ -75,7 +88,7 @@ class ProjectController {
             }
             // Client: do not expose deliveryUrl; expose deliveryMaskedLink when deliveryToken exists
             if (authReq.user?.role === 'client') {
-                return response_1.ApiResponse.success(res, sanitizeProjectForClient(project), 'Project retrieved successfully');
+                return response_1.ApiResponse.success(res, sanitizeProjectForClient(project, req), 'Project retrieved successfully');
             }
             return response_1.ApiResponse.success(res, project, 'Project retrieved successfully');
         }
@@ -158,7 +171,32 @@ class ProjectController {
                 notes: img.notes,
                 order: img.order,
             }));
-            const projectPayload = authReq.user?.role === 'client' ? sanitizeProjectForClient(project) : project;
+            const projectPayload = authReq.user?.role === 'client'
+                ? sanitizeProjectForClient(project, req)
+                : (project.toObject ? project.toObject() : project);
+            // Backward-compat: older cloned simple projects may miss EUR price.
+            // If this specific order has no EUR amount, try to inherit the current catalog template EUR value by service_name.
+            if (projectPayload?.project_type === 'simple' &&
+                !(Number(projectPayload?.service_price_eur) > 0) &&
+                projectPayload?.service_name) {
+                const templateWithEur = await Project_1.Project.findOne({
+                    _id: { $ne: project._id },
+                    project_type: 'simple',
+                    service_name: projectPayload.service_name,
+                    service_price_eur: { $gt: 0 },
+                    $or: [
+                        { client_email: { $exists: false } },
+                        { client_email: null },
+                        { client_email: '' },
+                    ],
+                })
+                    .sort({ updated_at: -1 })
+                    .select({ service_price_eur: 1 })
+                    .lean();
+                if (templateWithEur?.service_price_eur) {
+                    projectPayload.service_price_eur = templateWithEur.service_price_eur;
+                }
+            }
             return response_1.ApiResponse.success(res, {
                 project: projectPayload,
                 briefing: briefing || null,
@@ -286,9 +324,13 @@ class ProjectController {
                 client_name: 'Client',
                 client_email: userEmail,
                 project_type: 'simple',
+                selected_service: template.selected_service,
                 service_name: template.service_name,
                 service_price: template.service_price,
+                service_price_eur: template.service_price_eur,
+                service_description: template.service_description,
                 delivery_timeline: template.delivery_timeline || '30 days',
+                max_revisions: template.max_revisions ?? 3,
                 status: 'pending',
                 payment_status: 'pending',
             });
@@ -365,7 +407,7 @@ class ProjectController {
                         update.deliveryUrl = validUrl;
                         update.deliveryToken = token;
                         update.isDelivered = true;
-                        const baseUrl = DELIVERY_BASE_URL;
+                        const baseUrl = resolveDeliveryBaseUrl(req);
                         noteToStore = baseUrl ? `${deliveryPrefix} ${baseUrl.replace(/\/$/, '')}/delivery/${token}` : `${deliveryPrefix} [Link]`;
                     }
                     else if (urlMatch) {
@@ -625,6 +667,14 @@ class ProjectController {
             // Check if project is paid
             if (project.payment_status !== 'paid') {
                 return response_1.ApiResponse.error(res, 'Project must be paid before claiming revisions', 400);
+            }
+            // Once client accepts delivery (completed), revisions are locked.
+            if (project.status === 'completed') {
+                return response_1.ApiResponse.error(res, 'Revisions are no longer available after project acceptance', 400);
+            }
+            // Revisions are only valid while work is under review (or already in revision).
+            if (project.status !== 'review' && project.status !== 'revision') {
+                return response_1.ApiResponse.error(res, 'You can request a revision only while the project is in review', 400);
             }
             // Get current revision counts
             const revisionsUsed = project.revisions_used || 0;

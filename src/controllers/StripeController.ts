@@ -121,6 +121,7 @@ export async function createCheckoutSession(req: Request, res: Response): Promis
         {
           price_data: {
             currency,
+            tax_behavior: 'exclusive',
             product_data: {
               name: description || project.name,
               description: `Project: ${project.name}`,

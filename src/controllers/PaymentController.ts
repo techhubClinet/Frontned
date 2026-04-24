@@ -70,6 +70,7 @@ export class PaymentController {
           {
             price_data: {
               currency: 'usd',
+              tax_behavior: 'exclusive',
               product_data: {
                 name: description,
                 description: `Project: ${project.name}`,

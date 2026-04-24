@@ -40,6 +40,19 @@ const stripe_1 = require("../config/stripe");
 const urls_1 = require("../config/urls");
 const response_1 = require("../views/response");
 const Collaborator_1 = require("../models/Collaborator");
+async function assertStripeTaxIsReady(stripe) {
+    const taxSettings = await stripe.tax.settings.retrieve();
+    if (taxSettings.status === 'active') {
+        return;
+    }
+    const pendingDetails = taxSettings.status_details?.pending;
+    const missingFields = pendingDetails?.missing_fields || [];
+    const missingFieldsHint = missingFields.length > 0
+        ? ` Missing fields: ${missingFields.join(', ')}.`
+        : '';
+    throw new Error(`Stripe Tax is not fully configured for this account (status: ${taxSettings.status}).` +
+        `${missingFieldsHint} Configure Stripe Tax in Dashboard (head office, tax code/behavior, and registrations where required).`);
+}
 class PaymentController {
     // Create Stripe checkout session
     static async createCheckoutSession(req, res) {
@@ -72,12 +85,15 @@ class PaymentController {
             // Create Stripe checkout session
             const stripe = (0, stripe_1.getStripe)();
             const FRONTEND_URL = (0, urls_1.getFrontendUrl)();
+            // Fail fast with actionable diagnostics instead of a generic Checkout creation error.
+            await assertStripeTaxIsReady(stripe);
             const session = await stripe.checkout.sessions.create({
                 payment_method_types: ['card'],
                 line_items: [
                     {
                         price_data: {
                             currency: 'usd',
+                            tax_behavior: 'exclusive',
                             product_data: {
                                 name: description,
                                 description: `Project: ${project.name}`,
@@ -88,6 +104,8 @@ class PaymentController {
                     },
                 ],
                 mode: 'payment',
+                // Stripe Tax: dynamically calculate tax by billing country/address.
+                automatic_tax: { enabled: true },
                 // Always create a Stripe Customer so downstream automations can use a stable customer ID.
                 customer_creation: 'always',
                 customer_email: project.client_email || undefined, // Pre-fill email if available
