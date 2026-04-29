@@ -93,7 +93,7 @@ class PaymentController {
                     {
                         price_data: {
                             currency: 'usd',
-                            tax_behavior: 'exclusive',
+                            tax_behavior: 'inclusive',
                             product_data: {
                                 name: description,
                                 description: `Project: ${project.name}`,
