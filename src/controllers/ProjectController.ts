@@ -312,7 +312,10 @@ export class ProjectController {
       if (authReq.user?.role !== 'client') {
         return ApiResponse.error(res, 'Only clients can start a project from the catalog', 403)
       }
-      const { projectId } = req.body
+      const { projectId, catalogCurrency } = req.body as {
+        projectId?: string
+        catalogCurrency?: string
+      }
       if (!projectId) {
         return ApiResponse.error(res, 'projectId is required', 400)
       }
@@ -321,6 +324,21 @@ export class ProjectController {
         return ApiResponse.error(res, 'Project not found or not a catalog project', 404)
       }
       const userEmail = (authReq.user.email || '').trim()
+      const usdN = Number(template.service_price)
+      const eurN = Number(template.service_price_eur)
+      const hasUsd = template.service_price != null && Number.isFinite(usdN) && usdN > 0
+      const hasEur = template.service_price_eur != null && Number.isFinite(eurN) && eurN > 0
+      let currency: 'usd' | 'eur' | undefined
+      const want = catalogCurrency === 'eur' || catalogCurrency === 'EUR' ? 'eur' : 'usd'
+      if (want === 'eur' && hasEur) {
+        currency = 'eur'
+      } else if (want === 'usd' && hasUsd) {
+        currency = 'usd'
+      } else if (hasEur && !hasUsd) {
+        currency = 'eur'
+      } else if (hasUsd && !hasEur) {
+        currency = 'usd'
+      }
       const newProject = await Project.create({
         name: template.name,
         client_name: 'Client',
@@ -335,6 +353,7 @@ export class ProjectController {
         max_revisions: template.max_revisions ?? 3,
         status: 'pending',
         payment_status: 'pending',
+        ...(currency ? { currency } : {}),
       })
       const populated = await Project.findById(newProject._id).populate('selected_service')
       return ApiResponse.success(res, populated || newProject, 'Project created for you', 201)
