@@ -50,6 +50,49 @@ async function getBillingTaxDetails(
   }
 }
 
+function parseAmount(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string') return 0
+  const raw = value.trim()
+  if (!raw) return 0
+  const cleaned = raw.replace(/[^\d,.-]/g, '')
+  const normalized =
+    cleaned.includes(',') && !cleaned.includes('.')
+      ? cleaned.replace(',', '.')
+      : cleaned.replace(/,/g, '')
+  const parsed = parseFloat(normalized)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function getSelectedServiceDoc(project: any): Record<string, unknown> | null {
+  const svc = project?.selected_service
+  if (!svc || typeof svc !== 'object' || Array.isArray(svc)) return null
+  return svc as Record<string, unknown>
+}
+
+/** USD/EUR list prices for simple (catalog) projects; null if not simple or no list price at all. */
+function getSimpleListPrices(project: any): { usd: number; eur: number } | null {
+  if (project?.project_type !== 'simple') return null
+  const svc = getSelectedServiceDoc(project)
+  const usdProject = parseAmount(project.service_price)
+  const eurProject = parseAmount(project.service_price_eur)
+  const usdSvc = svc ? Math.max(parseAmount(svc.priceUSD), parseAmount(svc.price)) : 0
+  const eurSvc = svc ? parseAmount(svc.priceEUR) : 0
+  const usd = usdProject > 0 ? usdProject : usdSvc
+  const eur = eurProject > 0 ? eurProject : eurSvc
+  if (!(usd > 0) && !(eur > 0)) return null
+  return { usd: usd > 0 ? usd : 0, eur: eur > 0 ? eur : 0 }
+}
+
+function formatMoneyMainUnit(currency: 'usd' | 'eur', amount: number): string {
+  const sym = currency === 'eur' ? '€' : '$'
+  const formatted = amount.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })
+  return `${sym}${formatted}`
+}
+
 async function assertStripeTaxIsReady(stripe: Stripe): Promise<void> {
   const taxSettings = await stripe.tax.settings.retrieve()
   if (taxSettings.status === 'active') {
@@ -85,15 +128,48 @@ export async function createCheckoutSession(req: Request, res: Response): Promis
 
     const currency = (currencyParam === 'eur' ? 'eur' : 'usd') as 'usd' | 'eur'
 
-    if (!projectId || amount == null || amount <= 0) {
-      ApiResponse.error(res, 'projectId and positive amount are required', 400)
+    if (!projectId) {
+      ApiResponse.error(res, 'projectId is required', 400)
       return
     }
 
-    const project = await Project.findById(projectId)
+    const project = await Project.findById(projectId).populate('selected_service')
     if (!project) {
       ApiResponse.notFound(res, 'Project not found')
       return
+    }
+
+    const list = getSimpleListPrices(project)
+    let chargeAmount: number
+    if (list) {
+      if (currency === 'eur') {
+        if (!(list.eur > 0)) {
+          ApiResponse.error(
+            res,
+            'This service has no EUR list price. Choose USD or update the catalog.',
+            400
+          )
+          return
+        }
+        chargeAmount = list.eur
+      } else {
+        if (!(list.usd > 0)) {
+          ApiResponse.error(
+            res,
+            'This service has no USD list price. Choose EUR or update the catalog.',
+            400
+          )
+          return
+        }
+        chargeAmount = list.usd
+      }
+    } else {
+      const raw = Number(amount)
+      if (amount == null || !Number.isFinite(raw) || raw <= 0) {
+        ApiResponse.error(res, 'projectId and positive amount are required', 400)
+        return
+      }
+      chargeAmount = raw
     }
 
     // Use frontend origin when provided (e.g. localhost) so redirect stays on same host; otherwise use env
@@ -110,10 +186,19 @@ export async function createCheckoutSession(req: Request, res: Response): Promis
     }
 
     const stripe = getStripe()
-    const unitAmountCents = Math.round(Number(amount) * 100)
+    const unitAmountCents = Math.round(chargeAmount * 100)
 
     // Fail fast with actionable diagnostics instead of a generic Checkout creation error.
     await assertStripeTaxIsReady(stripe)
+
+    const chargedLabel = formatMoneyMainUnit(currency, chargeAmount)
+    const lineName =
+      list != null ? `${project.name} — ${chargedLabel}` : description || `${project.name} — ${chargedLabel}`
+    const lineDescriptionParts = [
+      project.service_name && String(project.service_name).trim(),
+      `Project: ${project.name}`,
+    ].filter(Boolean) as string[]
+    const lineDescription = lineDescriptionParts.join(' · ')
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -123,8 +208,8 @@ export async function createCheckoutSession(req: Request, res: Response): Promis
             currency,
             tax_behavior: 'exclusive',
             product_data: {
-              name: description || project.name,
-              description: `Project: ${project.name}`,
+              name: lineName,
+              description: lineDescription.slice(0, 500),
             },
             unit_amount: unitAmountCents,
           },
@@ -151,7 +236,7 @@ export async function createCheckoutSession(req: Request, res: Response): Promis
 
     await Project.findByIdAndUpdate(projectId, {
       stripe_payment_id: session.id,
-      custom_quote_amount: Number(amount),
+      custom_quote_amount: chargeAmount,
       currency,
     })
 
