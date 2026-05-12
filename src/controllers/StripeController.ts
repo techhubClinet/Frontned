@@ -11,6 +11,9 @@ import { sendClientDashboardEmail } from '../services/emailService'
 const FRONTEND_URL = getFrontendUrl()
 const FRONTEND_URL_NO_WWW = getFrontendUrlNoWww()
 
+/** Stripe Tax: "General - Services" — improves automatic_tax vs default product treatment (esp. EU). */
+const CHECKOUT_LINE_TAX_CODE = 'txcd_20030000'
+
 async function getBillingTaxDetails(
   stripe: Stripe,
   session: Stripe.Checkout.Session
@@ -210,6 +213,7 @@ export async function createCheckoutSession(req: Request, res: Response): Promis
             product_data: {
               name: lineName,
               description: lineDescription.slice(0, 500),
+              tax_code: CHECKOUT_LINE_TAX_CODE,
             },
             unit_amount: unitAmountCents,
           },

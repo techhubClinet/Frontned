@@ -39,6 +39,8 @@ export interface IProject extends Document {
   holded_document_id?: string // Holded official invoice document ID (for syncing with Holded)
   holded_invoice_status?: string // Raw status from Holded (e.g. draft, approved, cancelled)
   currency?: 'usd' | 'eur'
+  /** True = row is the admin storefront listing; false/missing with client_email = client order cloned from catalog */
+  is_catalog_template?: boolean
   deliveryUrl?: string // Original delivery URL (private)
   deliveryToken?: string // Secure token for masked link
   isDelivered?: boolean
@@ -109,6 +111,7 @@ const ProjectSchema = new Schema<IProject>(
     holded_document_id: { type: String },
     holded_invoice_status: { type: String },
     currency: { type: String, enum: ['usd', 'eur'] },
+    is_catalog_template: { type: Boolean },
     deliveryUrl: { type: String },
     deliveryToken: { type: String },
     isDelivered: { type: Boolean, default: false },

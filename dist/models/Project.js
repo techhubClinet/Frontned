@@ -86,6 +86,7 @@ const ProjectSchema = new mongoose_1.Schema({
     holded_document_id: { type: String },
     holded_invoice_status: { type: String },
     currency: { type: String, enum: ['usd', 'eur'] },
+    is_catalog_template: { type: Boolean },
     deliveryUrl: { type: String },
     deliveryToken: { type: String },
     isDelivered: { type: Boolean, default: false },

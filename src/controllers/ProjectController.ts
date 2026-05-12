@@ -230,6 +230,7 @@ export class ProjectController {
         projectData.delivery_timeline = delivery_timeline || '30 days'
         if (typeof service_description === 'string') projectData.service_description = service_description
         if (typeof max_revisions === 'number' && max_revisions >= 0 && max_revisions <= 99) projectData.max_revisions = max_revisions
+        projectData.is_catalog_template = true
 
         if (service_price) {
           const price = parseFloat(service_price.toString().replace('$', '').replace(',', '').trim())
@@ -292,10 +293,31 @@ export class ProjectController {
     }
   }
 
-  // Get all simple projects (public, no auth required)
+  // Get catalog storefront listings only (not client orders cloned from startFromCatalog)
   static async getSimpleProjects(req: Request, res: Response) {
     try {
-      const projects = await Project.find({ project_type: 'simple' })
+      const catalogListingFilter = {
+        project_type: 'simple',
+        $or: [
+          { is_catalog_template: true },
+          {
+            $and: [
+              {
+                $or: [{ is_catalog_template: { $exists: false } }, { is_catalog_template: false }],
+              },
+              {
+                $or: [
+                  { client_email: { $exists: false } },
+                  { client_email: null },
+                  { client_email: '' },
+                ],
+              },
+            ],
+          },
+        ],
+      }
+
+      const projects = await Project.find(catalogListingFilter)
         .populate('selected_service')
         .sort({ created_at: -1 })
 
@@ -353,6 +375,7 @@ export class ProjectController {
         max_revisions: template.max_revisions ?? 3,
         status: 'pending',
         payment_status: 'pending',
+        is_catalog_template: false,
         ...(currency ? { currency } : {}),
       })
       const populated = await Project.findById(newProject._id).populate('selected_service')
@@ -735,6 +758,8 @@ export class ProjectController {
       }
       if (typeof max_revisions === 'number' && max_revisions >= 0 && max_revisions <= 99) set.max_revisions = max_revisions
 
+      set.is_catalog_template = true
+
       const updatedProject = await Project.findByIdAndUpdate(projectId, { $set: set }, { new: true })
       if (!updatedProject) {
         return ApiResponse.notFound(res, 'Project not found')
@@ -762,6 +787,17 @@ export class ProjectController {
       }
       if (project.project_type !== 'simple') {
         return ApiResponse.error(res, 'Only predefined (catalog) projects can be deleted here', 400)
+      }
+
+      if (project.is_catalog_template !== true) {
+        const email = (project.client_email || '').trim()
+        if (email.length > 0) {
+          return ApiResponse.error(
+            res,
+            'This row is a client order (cloned from the catalog), not the storefront listing. Delete or archive it from orders if needed; it is kept separate from catalog templates.',
+            400
+          )
+        }
       }
 
       await Project.findByIdAndDelete(projectId)

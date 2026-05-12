@@ -97,6 +97,8 @@ class PaymentController {
                             product_data: {
                                 name: description,
                                 description: `Project: ${project.name}`,
+                                // General - Services (Stripe Tax); aligns Checkout with service-based sales.
+                                tax_code: 'txcd_20030000',
                             },
                             unit_amount: Math.round(amount * 100), // Convert to cents
                         },
