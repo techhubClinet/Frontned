@@ -9,6 +9,8 @@
     "start": "node dist/index.js",
     "seed": "ts-node database/seed.ts",
     "create-project": "ts-node database/create-test-project.ts",
+    "set-admin-role": "ts-node database/set-admin-role.ts",
+    "create-admin-user": "ts-node database/create-admin-user.ts",
     "test:delivery": "ts-node src/scripts/testDeliveryRedirect.ts",
     "test:services-sort": "ts-node src/scripts/testServiceSorting.ts"
   },

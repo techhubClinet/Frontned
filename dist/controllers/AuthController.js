@@ -7,6 +7,7 @@ exports.AuthController = void 0;
 const User_1 = require("../models/User");
 const Collaborator_1 = require("../models/Collaborator");
 const response_1 = require("../views/response");
+const adminEmails_1 = require("../config/adminEmails");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 // Hardcoded JWT secret
 const JWT_SECRET = 'your-secret-key-change-in-production-please-change-this-in-production';
@@ -64,7 +65,18 @@ class AuthController {
             const normalizedEmail = email.toLowerCase();
             // Find user
             let user = await User_1.User.findOne({ email: normalizedEmail });
-            // If no user found, allow hardcoded admin credentials to create the admin user on first login
+            const adminEmail = (0, adminEmails_1.isAdminEmail)(normalizedEmail);
+            const bootstrapPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD?.trim();
+            // First login for configured admin emails (optional shared bootstrap password in env)
+            if (!user && adminEmail && bootstrapPassword && password === bootstrapPassword) {
+                user = await User_1.User.create({
+                    name: normalizedEmail.split('@')[0] || 'Admin',
+                    email: normalizedEmail,
+                    password,
+                    role: 'admin',
+                });
+            }
+            // Legacy bootstrap (keep for existing setups)
             if (!user && normalizedEmail === 'admin1234@gmail.com' && password === 'admin1234') {
                 user = await User_1.User.create({
                     name: 'Admin',
@@ -80,6 +92,11 @@ class AuthController {
             const isMatch = await user.comparePassword(password);
             if (!isMatch) {
                 return response_1.ApiResponse.error(res, 'Invalid email or password', 401);
+            }
+            // Ensure configured admin emails always have admin role (e.g. signed up as client first)
+            if (adminEmail && user.role !== 'admin') {
+                user.role = 'admin';
+                await user.save();
             }
             // User can be both client and collaborator (same email); frontend uses this to show collaborator access
             const collaboratorProfile = await Collaborator_1.Collaborator.findOne({ user_id: user._id });

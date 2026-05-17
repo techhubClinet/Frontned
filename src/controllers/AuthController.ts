@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { User } from '../models/User'
 import { Collaborator } from '../models/Collaborator'
 import { ApiResponse } from '../views/response'
+import { isAdminEmail } from '../config/adminEmails'
 import jwt from 'jsonwebtoken'
 
 // Hardcoded JWT secret
@@ -26,21 +27,32 @@ export class AuthController {
         return ApiResponse.error(res, 'Name, email, and password are required', 400)
       }
 
-      if (password.length < 6) {
-        return ApiResponse.error(res, 'Password must be at least 6 characters', 400)
+      const trimmedPassword = typeof password === 'string' ? password.trim() : ''
+      if (trimmedPassword.length < 6) {
+        const len = trimmedPassword.length
+        return ApiResponse.error(
+          res,
+          len === 0
+            ? 'Password is required (at least 6 characters).'
+            : `Password must be at least 6 characters (you entered ${len}).`,
+          400
+        )
       }
 
+      const normalizedEmail = email.trim().toLowerCase()
+      const trimmedName = name.trim()
+
       // Check if user already exists
-      const existingUser = await User.findOne({ email: email.toLowerCase() })
+      const existingUser = await User.findOne({ email: normalizedEmail })
       if (existingUser) {
         return ApiResponse.error(res, 'User with this email already exists', 400)
       }
 
       // Create new user
       const user = await User.create({
-        name,
-        email: email.toLowerCase(),
-        password,
+        name: trimmedName,
+        email: normalizedEmail,
+        password: trimmedPassword,
         role: 'client',
       })
 
@@ -80,8 +92,20 @@ export class AuthController {
 
       // Find user
       let user = await User.findOne({ email: normalizedEmail })
+      const adminEmail = isAdminEmail(normalizedEmail)
+      const bootstrapPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD?.trim()
 
-      // If no user found, allow hardcoded admin credentials to create the admin user on first login
+      // First login for configured admin emails (optional shared bootstrap password in env)
+      if (!user && adminEmail && bootstrapPassword && password === bootstrapPassword) {
+        user = await User.create({
+          name: normalizedEmail.split('@')[0] || 'Admin',
+          email: normalizedEmail,
+          password,
+          role: 'admin',
+        })
+      }
+
+      // Legacy bootstrap (keep for existing setups)
       if (!user && normalizedEmail === 'admin1234@gmail.com' && password === 'admin1234') {
         user = await User.create({
           name: 'Admin',
@@ -99,6 +123,12 @@ export class AuthController {
       const isMatch = await user.comparePassword(password)
       if (!isMatch) {
         return ApiResponse.error(res, 'Invalid email or password', 401)
+      }
+
+      // Ensure configured admin emails always have admin role (e.g. signed up as client first)
+      if (adminEmail && user.role !== 'admin') {
+        user.role = 'admin'
+        await user.save()
       }
 
       // User can be both client and collaborator (same email); frontend uses this to show collaborator access
